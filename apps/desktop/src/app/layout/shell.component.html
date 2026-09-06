@@ -1,0 +1,19 @@
+<div class="shell">
+  <header class="topbar">
+    <a class="brand" routerLink="/" aria-label="Lattice home">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>Lattice</span>
+    </a>
+
+    <nav class="nav" aria-label="Primary">
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+        >Home</a
+      >
+      <a routerLink="/system" routerLinkActive="active">System</a>
+    </nav>
+  </header>
+
+  <main class="content" tabindex="-1">
+    <ng-content />
+  </main>
+</div>

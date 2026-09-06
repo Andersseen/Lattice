@@ -1,0 +1,61 @@
+<section class="panel" aria-labelledby="home-title">
+  <div class="intro">
+    <p class="eyebrow">Foundation build</p>
+    <h1 id="home-title">Local-first agentic workspace, starting small.</h1>
+    <p>
+      This screen verifies the Angular shell, routing, styling, and typed application bridge without
+      implementing future agent features yet.
+    </p>
+  </div>
+
+  <div class="status-grid" aria-label="Foundation status">
+    <article>
+      <span>Shell</span>
+      <strong>Angular zoneless</strong>
+    </article>
+    <article>
+      <span>Routing</span>
+      <strong>Lazy pages</strong>
+    </article>
+    <article>
+      <span>Bridge</span>
+      <strong>{{ runtimeLabel() }}</strong>
+    </article>
+  </div>
+
+  <div class="bridge-card">
+    <div>
+      <h2>Application bridge</h2>
+      @if (appInfo(); as info) {
+      <dl>
+        <div>
+          <dt>Name</dt>
+          <dd>{{ info.name }}</dd>
+        </div>
+        <div>
+          <dt>Version</dt>
+          <dd>{{ info.version }}</dd>
+        </div>
+        <div>
+          <dt>Runtime</dt>
+          <dd>{{ info.runtime }}</dd>
+        </div>
+        <div>
+          <dt>Target</dt>
+          <dd>{{ info.target }}</dd>
+        </div>
+      </dl>
+      } @else if (error(); as bridgeError) {
+      <p role="alert">{{ bridgeError.message }}</p>
+      } @else {
+      <p>Loading application information.</p>
+      }
+    </div>
+
+    <button type="button" (click)="refresh()" [disabled]="isLoading()">
+      {{ isLoading() ? 'Checking' : 'Refresh' }}
+    </button>
+  </div>
+
+  <a class="system-link" routerLink="/system">View system boundary</a>
+</section>

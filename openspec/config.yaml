@@ -1,0 +1,56 @@
+schema: spec-driven
+
+context: |
+  Lattice is a lightweight, local-first, provider-agnostic desktop application.
+  Stack: Tauri 2, Rust stable, Angular 22 zoneless, pnpm workspaces, Turborepo, Cargo workspace, Vitest, Playwright.
+  Current status: foundation only. Do not implement future agent/model/MCP/skills/memory/task/workspace features without an accepted OpenSpec change.
+
+rules:
+  proposal:
+    - Include non-goals for significant product or architecture changes.
+    - Explain how the change preserves local-first, lightweight, provider-agnostic boundaries.
+  spec:
+    - Describe observable behavior and architectural boundaries.
+    - Do not encode speculative abstractions without a current consumer.
+  tasks:
+    - Include verification steps for TypeScript, Angular, Rust, and E2E when relevant.
+
+operations:
+  apply:
+    guidance:
+      - Keep changes scoped to the accepted proposal.
+      - Do not weaken tests or type safety to make CI green.
+  archive:
+    guidance:
+      - Summarize implemented behavior and verification before archiving.
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
