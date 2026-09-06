@@ -11,12 +11,14 @@ Lattice is a local-first desktop application with a deliberately narrow boundary
 │ Rust application core   │
 └────────────┬────────────┘
              │
-     future adapters
-      ┌──────┴──────┐
-      ▼             ▼
- AgentRuntime   ModelRuntime
-                      │
-                   llmster
+     future Rust use cases
+      ┌──────┴───────────────┐
+      ▼                      ▼
+ Agent core             ModelRuntime management
+      │                      │
+ Provider adapters      llmster adapter
+      │                      │
+      └─ local/remote        llmster
 ```
 
 ## Current Implementation
@@ -30,6 +32,16 @@ The current code implements only a smoke path:
 - Structured app error shape with `code`, `message`, and `recoverable`.
 
 This proves the path without creating fake agent, model, storage, MCP, or skill implementations.
+
+The [source-based assessment](v1/repository-assessment.md) records verification limits and debts: manual Rust/TS DTO duplication, static Rust error messages, duplicate error normalization, disabled CSP, missing explicit strict template checking, minimal unit coverage and no installer certification. These are planned corrections, not implemented safeguards.
+
+## Planned v1 Architecture
+
+The [minor roadmap](roadmap.md) and [architecture sequence](v1/architecture-sequence.md) define the target and when each boundary gains its first consumer. ModelRuntime manages runtime/model lifecycle; a separate Provider port handles inference. The small Rust agent core owns the loop, context, skills, memory and permission-checked tools, including MCP. These capabilities and canonical conversations do not belong to the provider.
+
+Rust owns SQLite persistence and OS credential integration when introduced; Angular keeps presentation/interaction state and typed API calls. Spaces compose existing records; tasks reuse the same bounded agent. v1 permits one active run and one managed loaded model, local stdio MCP and one-shot safe scheduling while the app is open. Vertex, Wisp and Agentix remain independent and optional.
+
+The [Definition of v1](v1/definition-of-v1.md) specifies macOS/Apple Silicon support, Linux/Windows preview checks, measured resource gates and packaging/upgrade requirements. Current OpenSpec specs remain the source of implemented behavior; future roadmap contracts become normative through each accepted change.
 
 ## Target Boundaries
 
@@ -77,7 +89,7 @@ Capabilities should evolve independently behind real boundaries. A module should
 
 ```text
 ModelRuntime
-  -> llmster today
+  -> llmster as the first planned adapter
   -> another runtime tomorrow
 ```
 
@@ -123,13 +135,15 @@ Future target:
 
 ```text
 Lattice application/runtime overhead
-<= ~1-2 GB
+~1 GiB working target / 2 GiB release ceiling
 
 Remaining resources
 -> local model
 ```
 
 These are engineering targets, not current benchmark claims.
+
+The v1 quality contract defines exactly what is included in non-model overhead, measurement uncertainty, CPU/cleanup thresholds and gates at foundation, runtime, loaded model, agent and pre-release stages. The reference hardware is an engineering constraint, not product branding or a benchmark claim.
 
 Future benchmarking should measure:
 

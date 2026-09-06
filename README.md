@@ -11,7 +11,7 @@ Lattice is planned as a local-first desktop application for running agentic work
 Implemented now:
 
 - Tauri 2 desktop shell.
-- Angular zoneless frontend with standalone APIs, signals, lazy routes, and strict template checking.
+- Angular zoneless frontend with standalone APIs, signals, lazy routes, and strict TypeScript settings. Explicit strict template checking is a planned foundation correction.
 - Typed Angular application API that calls a Tauri IPC command when running in desktop mode.
 - Rust core crate with a minimal `get_app_info` smoke path.
 - pnpm, Turborepo, and Cargo workspaces.
@@ -24,12 +24,12 @@ Planned:
 - Runtime lifecycle and process management.
 - A replaceable model runtime abstraction, initially backed by llmster.
 - Provider abstraction, tool registry, basic agent loop, skills, MCP, memory, permissions, and workspace context.
+- Required native workflow verification and resource profiling before 1.0.
 
 Exploratory:
 
 - Optional Vertex and Wisp integrations.
 - Native desktop automation beyond the current web-shell Playwright smoke tests.
-- Resource profiling and runtime process telemetry.
 
 ## Why Lattice?
 
@@ -52,7 +52,7 @@ Pre-1.0 foundation. Do not treat future capabilities in the docs as implemented 
 ## Goals
 
 - Local-first by default.
-- Lightweight enough for Apple Silicon machines with 16 GB unified memory.
+- Low application overhead that leaves memory available for local models; resource targets require measurement.
 - Provider-agnostic prompts, tools, skills, memory, and runtime boundaries.
 - Rust-owned native capabilities and future OS/process/storage/security code.
 - Angular-owned presentation and interaction state.
@@ -158,6 +158,8 @@ openspec/                OpenSpec config and future spec source of truth
 ## Roadmap
 
 See [docs/roadmap.md](docs/roadmap.md). The roadmap has no dates and does not make Wisp or Vertex part of v1.
+
+The [repository assessment](docs/v1/repository-assessment.md) distinguishes implemented behavior from planned releases; the [Definition of 1.0](docs/v1/definition-of-v1.md) sets the required workflow and platform support. The next implementation scope is **0.2 — Application Runtime Foundation**.
 
 ## Contributing
 

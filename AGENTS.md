@@ -64,6 +64,15 @@ explore -> propose -> spec -> design -> tasks -> implementation -> verification 
 
 Significant changes should link to an OpenSpec change in the PR.
 
+## Implementing A Roadmap Minor
+
+- Read `docs/architecture.md`, `docs/roadmap.md`, its linked v1 constraints, and the current `openspec/specs/` before implementation.
+- Implement only the requested minor after its prerequisites are verified and its OpenSpec proposal, behavioral deltas, design and tasks are accepted.
+- The roadmap describes future scope; it does not make future contracts implemented or authorize adjacent minors. Keep one coherent release objective per branch/PR.
+- Use the minor's acceptance checklist and the common Definition of Done in `docs/v1/definition-of-v1.md`; record negative-case, native and resource evidence where required.
+- Update current specs and capability status only to match verified behavior, then archive the completed change. Do not open all future changes or prebuild their abstractions.
+- Every new dependency needs a current consumer, alternative considered, runtime cost, maintenance/license evidence and security implications in the design.
+
 ## Forbidden Shortcuts
 
 - Do not bypass type safety.
