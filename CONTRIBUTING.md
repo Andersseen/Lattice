@@ -19,6 +19,8 @@ Use Rust stable and install the Tauri prerequisites for your operating system.
 - Prefer one clear PR over a broad rewrite.
 - Add tests where behavior changes.
 - Run `pnpm check` before opening a PR.
+- Run `pnpm contracts:generate` after changing Rust-owned application wire contracts.
+- Run `pnpm contracts:check` when reviewing generated contract changes.
 
 ## Conventional Commits
 
@@ -38,3 +40,5 @@ Do not add dependencies without a concrete reason. Before adding one, check that
 ## OpenSpec
 
 Use OpenSpec when a change affects product behavior, security boundaries, native capability access, persistence, providers, model runtime, agent runtime, MCP, skills, memory, tasks, or architecture.
+
+OpenSpec validation is pinned through `pnpm openspec:validate`.

@@ -1,5 +1,7 @@
 use serde::Serialize;
 
+pub const GET_APP_INFO_COMMAND: &str = "get_app_info";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AppRuntime {
@@ -47,7 +49,7 @@ fn current_target() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{app_info, AppRuntime};
+    use super::{app_info, AppRuntime, GET_APP_INFO_COMMAND};
 
     #[test]
     fn exposes_foundation_app_info() {
@@ -57,5 +59,10 @@ mod tests {
         assert_eq!(info.runtime, AppRuntime::Tauri);
         assert!(!info.version.is_empty());
         assert!(!info.target.is_empty());
+    }
+
+    #[test]
+    fn exposes_checked_command_name() {
+        assert_eq!(GET_APP_INFO_COMMAND, "get_app_info");
     }
 }

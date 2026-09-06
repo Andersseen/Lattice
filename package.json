@@ -29,7 +29,9 @@
     "format": "prettier --write . && cargo fmt --all",
     "format:check": "prettier --check . && cargo fmt --all --check",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings",
-    "openspec:validate": "pnpm dlx @fission-ai/openspec@latest validate --specs"
+    "contracts:generate": "cargo run -p lattice-core --bin generate_types",
+    "contracts:check": "cargo test -p lattice-core committed_typescript_bindings_match_rust_contract",
+    "openspec:validate": "pnpm dlx @fission-ai/openspec@1.12.0 validate --specs"
   },
   "devDependencies": {
     "@angular-eslint/eslint-plugin": "22.2.0",

@@ -11,8 +11,8 @@ Lattice is planned as a local-first desktop application for running agentic work
 Implemented now:
 
 - Tauri 2 desktop shell.
-- Angular zoneless frontend with standalone APIs, signals, lazy routes, and strict TypeScript settings. Explicit strict template checking is a planned foundation correction.
-- Typed Angular application API that calls a Tauri IPC command when running in desktop mode.
+- Angular zoneless frontend with standalone APIs, signals, lazy routes, strict TypeScript settings, and strict template checking.
+- Typed Angular application API that calls a generated Tauri IPC command name when running in desktop mode.
 - Rust core crate with a minimal `get_app_info` smoke path.
 - pnpm, Turborepo, and Cargo workspaces.
 - Vitest, Playwright, ESLint, Prettier, rustfmt, Clippy, and CI configuration.
@@ -72,12 +72,13 @@ The current smoke path is intentionally small:
 ```text
 Angular home page
   -> AppApiService
+  -> generated command inventory
   -> Tauri invoke("get_app_info")
   -> lattice-desktop command
   -> lattice-core::app_info()
 ```
 
-In browser-only tests, the same application API returns a typed fallback so CI can verify the web shell without desktop automation.
+In browser-only tests, the same application API returns a typed fallback so CI can verify the web shell without desktop automation. Native IPC responses are decoded from untrusted payloads before they enter application state.
 
 See [docs/architecture.md](docs/architecture.md).
 
@@ -121,7 +122,11 @@ pnpm typecheck
 pnpm test
 pnpm e2e
 pnpm check
+pnpm contracts:generate
+pnpm contracts:check
 ```
+
+`pnpm contracts:generate` refreshes committed TypeScript bindings from Rust-owned wire contracts. `pnpm contracts:check` verifies that the committed bindings match Rust.
 
 Useful Rust commands:
 
