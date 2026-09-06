@@ -1,3 +1,5 @@
+@import '@voltui/components/themes.css';
+
 :root {
   color-scheme: light dark;
   --color-background: #f8faf7;

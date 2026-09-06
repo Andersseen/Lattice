@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { VoltButton } from '@voltui/components';
+import { MoveAnimateDirective, MoveHoverDirective } from 'angular-movement';
 
 import { AppInfoStore } from '../../core/state/app-info.store';
 
 @Component({
   selector: 'lat-home-page',
-  imports: [RouterLink],
+  imports: [MoveAnimateDirective, MoveHoverDirective, RouterLink, VoltButton],
   templateUrl: './home.page.html',
   styleUrl: './home.page.css',
   changeDetection: ChangeDetectionStrategy.OnPush

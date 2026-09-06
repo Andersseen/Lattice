@@ -1,15 +1,21 @@
 <div class="shell">
   <header class="topbar">
     <a class="brand" routerLink="/" aria-label="Lattice home">
-      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-mark" aria-hidden="true">
+        <lmn-sparkles [size]="16" />
+      </span>
       <span>Lattice</span>
     </a>
 
     <nav class="nav" aria-label="Primary">
-      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+      <a
+        routerLink="/"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        qzTooltip="Foundation overview"
         >Home</a
       >
-      <a routerLink="/system" routerLinkActive="active">System</a>
+      <a routerLink="/system" routerLinkActive="active" qzTooltip="Runtime boundary">System</a>
     </nav>
   </header>
 

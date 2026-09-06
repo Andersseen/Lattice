@@ -31,9 +31,13 @@
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings",
     "contracts:generate": "cargo run -p lattice-core --bin generate_types",
     "contracts:check": "cargo test -p lattice-core committed_typescript_bindings_match_rust_contract",
+    "agentyx:doctor": "agentyx doctor --check",
+    "agentyx:install:dry-run": "agentyx install --dry-run",
+    "agentyx:install": "agentyx install",
     "openspec:validate": "pnpm dlx @fission-ai/openspec@1.12.0 validate --specs"
   },
   "devDependencies": {
+    "@agentyx/cli": "0.5.0",
     "@angular-eslint/eslint-plugin": "22.2.0",
     "@angular-eslint/eslint-plugin-template": "22.2.0",
     "@angular-eslint/template-parser": "22.2.0",

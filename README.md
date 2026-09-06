@@ -91,8 +91,10 @@ See [docs/architecture.md](docs/architecture.md).
 - Native code: Cargo workspace.
 - Testing: Vitest, Playwright, Cargo tests.
 - Quality: ESLint flat config, Prettier, rustfmt, Clippy.
+- UI foundation: Volt UI themes/components, Angular Movement, Lumen Icons, and Quartz Headless primitives.
+- Agent development tooling: Agentyx project-local pack configuration for Codex skills/MCP planning.
 
-Volt UI and Angular Movement are not installed yet. They are expected frontend integrations, but this setup keeps styling simple until their real API and dependency requirements are introduced by a focused change.
+Volt UI, Angular Movement, Lumen Icons and Quartz Headless are admitted as frontend foundations with small current consumers. Agentyx is admitted as development tooling only; it does not add product skills or MCP runtime behavior.
 
 ## Getting Started
 
@@ -124,9 +126,14 @@ pnpm e2e
 pnpm check
 pnpm contracts:generate
 pnpm contracts:check
+pnpm agentyx:doctor
+pnpm agentyx:install:dry-run
+pnpm agentyx:install
 ```
 
 `pnpm contracts:generate` refreshes committed TypeScript bindings from Rust-owned wire contracts. `pnpm contracts:check` verifies that the committed bindings match Rust.
+
+`pnpm agentyx:doctor` verifies the project-local Agentyx configuration. `pnpm agentyx:install:dry-run` previews skill/MCP installation plans, and `pnpm agentyx:install` applies them to project-local provider files.
 
 Useful Rust commands:
 
