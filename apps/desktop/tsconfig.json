@@ -6,6 +6,9 @@
   },
   "files": [],
   "include": [],
+  "angularCompilerOptions": {
+    "strictTemplates": true
+  },
   "references": [
     {
       "path": "./tsconfig.app.json"

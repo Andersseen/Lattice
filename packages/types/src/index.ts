@@ -1,18 +1,21 @@
-export type AppRuntime = 'tauri' | 'web';
+export {
+  APP_COMMANDS,
+  type AppCommand,
+  type AppError,
+  type BuildProfile,
+  type NativeAppInfo,
+  type NativeAppRuntime
+} from './generated';
 
-export interface AppInfo {
-  readonly name: string;
-  readonly version: string;
-  readonly buildProfile: 'debug' | 'release';
+import type { NativeAppInfo, NativeAppRuntime } from './generated';
+
+export type WebAppRuntime = 'web';
+
+export type AppRuntime = NativeAppRuntime | WebAppRuntime;
+
+export type AppInfo = Omit<NativeAppInfo, 'runtime'> & {
   readonly runtime: AppRuntime;
-  readonly target: string;
-}
-
-export interface AppError {
-  readonly code: string;
-  readonly message: string;
-  readonly recoverable: boolean;
-}
+};
 
 export interface BridgeStatus {
   readonly runtime: AppRuntime;

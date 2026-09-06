@@ -11,8 +11,8 @@ Lattice is planned as a local-first desktop application for running agentic work
 Implemented now:
 
 - Tauri 2 desktop shell.
-- Angular zoneless frontend with standalone APIs, signals, lazy routes, and strict template checking.
-- Typed Angular application API that calls a Tauri IPC command when running in desktop mode.
+- Angular zoneless frontend with standalone APIs, signals, lazy routes, strict TypeScript settings, and strict template checking.
+- Typed Angular application API that calls a generated Tauri IPC command name when running in desktop mode.
 - Rust core crate with a minimal `get_app_info` smoke path.
 - pnpm, Turborepo, and Cargo workspaces.
 - Vitest, Playwright, ESLint, Prettier, rustfmt, Clippy, and CI configuration.
@@ -24,12 +24,12 @@ Planned:
 - Runtime lifecycle and process management.
 - A replaceable model runtime abstraction, initially backed by llmster.
 - Provider abstraction, tool registry, basic agent loop, skills, MCP, memory, permissions, and workspace context.
+- Required native workflow verification and resource profiling before 1.0.
 
 Exploratory:
 
 - Optional Vertex and Wisp integrations.
 - Native desktop automation beyond the current web-shell Playwright smoke tests.
-- Resource profiling and runtime process telemetry.
 
 ## Why Lattice?
 
@@ -52,7 +52,7 @@ Pre-1.0 foundation. Do not treat future capabilities in the docs as implemented 
 ## Goals
 
 - Local-first by default.
-- Lightweight enough for Apple Silicon machines with 16 GB unified memory.
+- Low application overhead that leaves memory available for local models; resource targets require measurement.
 - Provider-agnostic prompts, tools, skills, memory, and runtime boundaries.
 - Rust-owned native capabilities and future OS/process/storage/security code.
 - Angular-owned presentation and interaction state.
@@ -72,12 +72,13 @@ The current smoke path is intentionally small:
 ```text
 Angular home page
   -> AppApiService
+  -> generated command inventory
   -> Tauri invoke("get_app_info")
   -> lattice-desktop command
   -> lattice-core::app_info()
 ```
 
-In browser-only tests, the same application API returns a typed fallback so CI can verify the web shell without desktop automation.
+In browser-only tests, the same application API returns a typed fallback so CI can verify the web shell without desktop automation. Native IPC responses are decoded from untrusted payloads before they enter application state.
 
 See [docs/architecture.md](docs/architecture.md).
 
@@ -90,8 +91,10 @@ See [docs/architecture.md](docs/architecture.md).
 - Native code: Cargo workspace.
 - Testing: Vitest, Playwright, Cargo tests.
 - Quality: ESLint flat config, Prettier, rustfmt, Clippy.
+- UI foundation: Volt UI themes/components, Angular Movement, Lumen Icons, and Quartz Headless primitives.
+- Agent development tooling: Agentyx project-local pack configuration for Codex skills/MCP planning.
 
-Volt UI and Angular Movement are not installed yet. They are expected frontend integrations, but this setup keeps styling simple until their real API and dependency requirements are introduced by a focused change.
+Volt UI, Angular Movement, Lumen Icons and Quartz Headless are admitted as frontend foundations with small current consumers. Agentyx is admitted as development tooling only; it does not add product skills or MCP runtime behavior.
 
 ## Getting Started
 
@@ -121,7 +124,16 @@ pnpm typecheck
 pnpm test
 pnpm e2e
 pnpm check
+pnpm contracts:generate
+pnpm contracts:check
+pnpm agentyx:doctor
+pnpm agentyx:install:dry-run
+pnpm agentyx:install
 ```
+
+`pnpm contracts:generate` refreshes committed TypeScript bindings from Rust-owned wire contracts. `pnpm contracts:check` verifies that the committed bindings match Rust.
+
+`pnpm agentyx:doctor` verifies the project-local Agentyx configuration. `pnpm agentyx:install:dry-run` previews skill/MCP installation plans, and `pnpm agentyx:install` applies them to project-local provider files.
 
 Useful Rust commands:
 
@@ -158,6 +170,8 @@ openspec/                OpenSpec config and future spec source of truth
 ## Roadmap
 
 See [docs/roadmap.md](docs/roadmap.md). The roadmap has no dates and does not make Wisp or Vertex part of v1.
+
+The [repository assessment](docs/v1/repository-assessment.md) distinguishes implemented behavior from planned releases; the [Definition of 1.0](docs/v1/definition-of-v1.md) sets the required workflow and platform support. The next implementation scope is **0.2 — Application Runtime Foundation**.
 
 ## Contributing
 

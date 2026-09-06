@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
-import type { AppError, AppInfo } from '@lattice/types';
+import { APP_COMMANDS, type AppError, type AppInfo } from '@lattice/types';
 
+import { decodeAppInfo, normalizeAppError } from './app-wire';
 import { createWebFallbackInfo } from './app-info-fallback';
 import { isTauriRuntime } from './tauri-runtime';
 
@@ -13,7 +14,7 @@ export class AppApiService {
 
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      return await invoke<AppInfo>('get_app_info');
+      return decodeAppInfo(await invoke<unknown>(APP_COMMANDS.getAppInfo));
     } catch (error: unknown) {
       throw normalizeBridgeError(error);
     }
@@ -21,26 +22,5 @@ export class AppApiService {
 }
 
 function normalizeBridgeError(error: unknown): AppError {
-  if (isAppError(error)) {
-    return error;
-  }
-
-  return {
-    code: 'bridge.unknown',
-    message: 'Lattice could not read application information.',
-    recoverable: true
-  };
-}
-
-function isAppError(value: unknown): value is AppError {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-
-  const candidate = value as Partial<AppError>;
-  return (
-    typeof candidate.code === 'string' &&
-    typeof candidate.message === 'string' &&
-    typeof candidate.recoverable === 'boolean'
-  );
+  return normalizeAppError(error);
 }

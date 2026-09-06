@@ -1,5 +1,5 @@
 <section class="panel" aria-labelledby="home-title">
-  <div class="intro">
+  <div class="intro" move="fade-up">
     <p class="eyebrow">Foundation build</p>
     <h1 id="home-title">Local-first agentic workspace, starting small.</h1>
     <p>
@@ -52,9 +52,16 @@
       }
     </div>
 
-    <button type="button" (click)="refresh()" [disabled]="isLoading()">
+    <volt-button
+      type="button"
+      variant="outline"
+      size="md"
+      [disabled]="isLoading()"
+      [moveWhileHover]="{ scale: [1, 1.02] }"
+      (click)="refresh()"
+    >
       {{ isLoading() ? 'Checking' : 'Refresh' }}
-    </button>
+    </volt-button>
   </div>
 
   <a class="system-link" routerLink="/system">View system boundary</a>

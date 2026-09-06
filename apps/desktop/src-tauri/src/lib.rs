@@ -23,7 +23,7 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::get_app_info;
-    use lattice_core::AppRuntime;
+    use lattice_core::{AppRuntime, GET_APP_INFO_COMMAND};
 
     #[test]
     fn ipc_command_returns_core_app_info() {
@@ -34,5 +34,10 @@ mod tests {
             info.as_ref().map(|value| value.runtime),
             Some(AppRuntime::Tauri)
         );
+    }
+
+    #[test]
+    fn application_command_inventory_matches_tauri_handler() {
+        assert_eq!([GET_APP_INFO_COMMAND], ["get_app_info"]);
     }
 }

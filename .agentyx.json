@@ -1,0 +1,6 @@
+{
+  "$schema": "./node_modules/@agentyx/core/schema/agentyx.schema.json",
+  "packs": ["technical", "typescript", "angular", "efficiency", "testing", "security", "git"],
+  "enable": ["rtk"],
+  "targets": ["codex"]
+}
