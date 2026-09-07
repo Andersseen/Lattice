@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-application-settings"
+description = "Enables application settings commands without any pre-configured scope."
+commands.allow = ["get_app_settings", "update_app_settings", "reset_app_settings"]
+
+[[permission]]
+identifier = "deny-application-settings"
+description = "Denies application settings commands without any pre-configured scope."
+commands.deny = ["get_app_settings", "update_app_settings", "reset_app_settings"]

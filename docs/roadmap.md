@@ -1,6 +1,6 @@
 # Lattice roadmap to 1.0
 
-Engineering plan, 2026-09-06. Baseline: unpublished `0.1.0` foundation at `2e8eb7e`. Status updated 2026-09-07: `0.2` is archived, the `0.3` desktop security baseline is implemented on the active branch, and the next product implementation minor is `0.4`. Future release entries remain planned until their OpenSpec changes are accepted and verified. No dates, tags or published releases are created by this plan.
+Engineering plan, 2026-09-06. Baseline: unpublished `0.1.0` foundation at `2e8eb7e`. Status updated 2026-09-07: `0.2` is archived, the `0.3` desktop security baseline is implemented on the active branch, and the `0.4` persistent settings minor is implemented on the active branch with native GUI restart evidence pending before archive. Future release entries remain planned until their OpenSpec changes are accepted and verified. No dates, tags or published releases are created by this plan.
 
 The destination is a lightweight, local-first, provider-agnostic desktop agent workspace. A small Rust agent core coordinates replaceable inference, explicit tools, portable skills, MCP, memory, Spaces and basic tasks. It does not reproduce LM Studio, Hermes, an IDE or a distributed agent platform.
 
@@ -22,8 +22,8 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 | ------- | ---------------------- | ----------------------------------------------------------- |
 | 0.2     | Done, archived         | Verifiable application IPC contracts and error handling.    |
 | 0.3     | Done, archive/evidence | Restrictive desktop security baseline.                      |
-| 0.4     | Next                   | Persistent non-secret settings.                             |
-| 0.5     | Planned                | llmster discovery through a consumed ModelRuntime boundary. |
+| 0.4     | Done, archive/evidence | Persistent non-secret settings.                             |
+| 0.5     | Next                   | llmster discovery through a consumed ModelRuntime boundary. |
 | 0.6     | Planned                | Approved, owned runtime lifecycle.                          |
 | 0.7     | Planned                | Installed local model list/load/unload.                     |
 | 0.8     | Planned                | First local streaming chat and cancellation.                |
@@ -109,7 +109,7 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 
 ## 0.4 — Persistent application settings
 
-**Status:** next product implementation minor.
+**Status:** implementation done on the active branch. Rust temporary database restart coverage, migration rollback, newer-schema refusal, Tauri build and browser Settings smoke pass. Live native GUI restart evidence remains before final archive.
 
 **Objective:** retain validated non-secret preferences across restart.
 

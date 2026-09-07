@@ -1,10 +1,41 @@
-use lattice_core::{app_info, AppError, AppInfo};
+use lattice_core::{
+    app_info, AppError, AppInfo, AppSettings, ResetAppSettingsRequest, SettingsStore,
+    UpdateAppSettingsRequest,
+};
+use std::{path::PathBuf, sync::Mutex};
+use tauri::Manager;
 
 const STARTUP_FAILURE_EXIT_CODE: i32 = 1;
+const SETTINGS_DATABASE_FILE: &str = "lattice.sqlite3";
+
+struct DesktopState {
+    settings: Mutex<SettingsStore>,
+}
 
 #[tauri::command]
 fn get_app_info() -> Result<AppInfo, AppError> {
     Ok(app_info())
+}
+
+#[tauri::command]
+fn get_app_settings(state: tauri::State<'_, DesktopState>) -> Result<AppSettings, AppError> {
+    with_settings_store(&state, |store| store.read())
+}
+
+#[tauri::command]
+fn update_app_settings(
+    state: tauri::State<'_, DesktopState>,
+    request: UpdateAppSettingsRequest,
+) -> Result<AppSettings, AppError> {
+    with_settings_store(&state, |store| store.update(request))
+}
+
+#[tauri::command]
+fn reset_app_settings(
+    state: tauri::State<'_, DesktopState>,
+    request: ResetAppSettingsRequest,
+) -> Result<AppSettings, AppError> {
+    with_settings_store(&state, |store| store.reset(request))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -16,13 +47,41 @@ pub fn run() {
 
 fn run_desktop_shell() -> Result<(), tauri::Error> {
     tauri::Builder::default()
+        .setup(|app| {
+            let settings_path = settings_database_path(app)?;
+            let settings = SettingsStore::open(settings_path)?;
+            app.manage(DesktopState {
+                settings: Mutex::new(settings),
+            });
+            Ok(())
+        })
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(tauri_plugin_log::log::LevelFilter::Info)
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![get_app_info])
+        .invoke_handler(tauri::generate_handler![
+            get_app_info,
+            get_app_settings,
+            update_app_settings,
+            reset_app_settings
+        ])
         .run(tauri::generate_context!())
+}
+
+fn settings_database_path(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    Ok(app.path().app_data_dir()?.join(SETTINGS_DATABASE_FILE))
+}
+
+fn with_settings_store<T>(
+    state: &tauri::State<'_, DesktopState>,
+    operation: impl FnOnce(&mut SettingsStore) -> Result<T, AppError>,
+) -> Result<T, AppError> {
+    let mut settings = state.settings.lock().map_err(|_| {
+        AppError::storage_unavailable("Lattice could not access local settings storage.")
+    })?;
+
+    operation(&mut settings)
 }
 
 fn exit_after_startup_failure(error: &tauri::Error) -> ! {
@@ -37,7 +96,10 @@ fn startup_failure_message(error: &tauri::Error) -> String {
 #[cfg(test)]
 mod tests {
     use super::{get_app_info, startup_failure_message, STARTUP_FAILURE_EXIT_CODE};
-    use lattice_core::{AppRuntime, GET_APP_INFO_COMMAND};
+    use lattice_core::{
+        AppRuntime, GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND,
+        UPDATE_APP_SETTINGS_COMMAND,
+    };
     use serde_json::Value;
     use std::{error::Error, fs, io, path::PathBuf};
 
@@ -54,7 +116,20 @@ mod tests {
 
     #[test]
     fn application_command_inventory_matches_tauri_handler() {
-        assert_eq!([GET_APP_INFO_COMMAND], ["get_app_info"]);
+        assert_eq!(
+            [
+                GET_APP_INFO_COMMAND,
+                GET_APP_SETTINGS_COMMAND,
+                UPDATE_APP_SETTINGS_COMMAND,
+                RESET_APP_SETTINGS_COMMAND
+            ],
+            [
+                "get_app_info",
+                "get_app_settings",
+                "update_app_settings",
+                "reset_app_settings"
+            ]
+        );
     }
 
     #[test]
@@ -123,7 +198,10 @@ mod tests {
         );
         assert_eq!(
             string_array(&capability, "permissions")?,
-            vec!["allow-get-app-info".to_string()]
+            vec![
+                "allow-get-app-info".to_string(),
+                "allow-application-settings".to_string()
+            ]
         );
         assert!(capability.get("remote").is_none());
         assert!(capability

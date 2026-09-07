@@ -1,10 +1,14 @@
 export {
   APP_COMMANDS,
+  type AppearancePreference,
   type AppCommand,
   type AppError,
+  type AppSettings,
   type BuildProfile,
   type NativeAppInfo,
-  type NativeAppRuntime
+  type NativeAppRuntime,
+  type ResetAppSettingsRequest,
+  type UpdateAppSettingsRequest
 } from './generated';
 
 import type { NativeAppInfo, NativeAppRuntime } from './generated';

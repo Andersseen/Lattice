@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
+import { SettingsStore } from './core/state/settings.store';
 import { ShellComponent } from './layout/shell.component';
 
 @Component({
@@ -13,4 +14,8 @@ import { ShellComponent } from './layout/shell.component';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class AppComponent {}
+export class AppComponent {
+  constructor() {
+    inject(SettingsStore);
+  }
+}

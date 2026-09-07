@@ -30,6 +30,51 @@ impl AppError {
             correlation_id: None,
         }
     }
+
+    pub const fn invalid_settings(message: &'static str) -> Self {
+        Self {
+            code: "settings.invalid",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn settings_conflict(message: &'static str) -> Self {
+        Self {
+            code: "settings.conflict",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn storage_unavailable(message: &'static str) -> Self {
+        Self {
+            code: "storage.unavailable",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn migration_failed(message: &'static str) -> Self {
+        Self {
+            code: "storage.migration_failed",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn unsupported_schema(message: &'static str) -> Self {
+        Self {
+            code: "storage.unsupported_schema",
+            message,
+            recoverable: false,
+            correlation_id: None,
+        }
+    }
 }
 
 #[cfg(test)]
