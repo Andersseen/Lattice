@@ -51,11 +51,14 @@ This is an inspection of existing behavior, not an implementation change. No dep
 - The environment emits a user-level npm configuration warning about an unset variable; it did not prevent these checks. No credential value was read.
 - Remote CI, installable packages, signing, native launch, real IPC traversal and resource profiling have not been certified by these checks.
 
+## Current Forward Path
+
+As of the active 2026-09-07 desktop security branch, `0.2` has been archived into the permanent `application-api` spec and the `0.3` baseline has been implemented in configuration/code/docs. The next product implementation minor is `0.4` persistent non-secret settings. Remaining native WebView denial evidence and P0 idle measurement belong to `0.3` verification/archive, not to expanding `0.4`.
+
 ## Priority debts
 
-1. **0.2:** establish Rust-owned wire DTOs, automated TS export/drift detection, one bridge normalization point, bounded dynamic safe errors, actual IPC integration evidence, strict Angular template checking and test-source typechecking.
-2. **0.3:** enable and verify production CSP and explicit command/window exposure before opening process or network capabilities; capture baseline resources.
-3. **0.4:** introduce SQLite only for its first real consumer: non-secret settings. Define migrations and failure recovery before conversations/tasks.
-4. **0.5–0.7:** distinguish runtime discovery, daemon/server ownership and model state; never equate OpenAI compatibility with lifecycle support.
-5. **0.10 / 0.14 onward:** credentials before remote traffic, workspace policy before tools, task-specific grants before unattended work.
-6. **0.25–0.28:** measured resource behavior, adversarial security verification, actual packaging and first-use/upgrade qualification close v1; they do not defer earlier safeguards.
+1. **0.3 verification/archive:** complete native WebView denial evidence and P0 idle resource capture before archiving the desktop security change.
+2. **0.4:** introduce SQLite only for its first real consumer: non-secret settings. Define migrations and failure recovery before conversations/tasks.
+3. **0.5–0.7:** distinguish runtime discovery, daemon/server ownership and model state; never equate OpenAI compatibility with lifecycle support.
+4. **0.10 / 0.14 onward:** credentials before remote traffic, workspace policy before tools, task-specific grants before unattended work.
+5. **0.25–0.28:** measured resource behavior, adversarial security verification, actual packaging and first-use/upgrade qualification close v1; they do not defer earlier safeguards.

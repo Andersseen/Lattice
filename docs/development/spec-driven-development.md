@@ -65,9 +65,9 @@ The [roadmap](../roadmap.md) is the release scope index, supported by the capabi
 
 This planning update leaves the foundation spec unchanged and opens no implementation changes. No future behavior is promoted to a permanent spec merely because it has a release number.
 
-For the next requested minor:
+For the next requested minor after the active 0.3 branch:
 
-1. **Explore:** read AGENTS, architecture, baseline assessment, requested release and prerequisite specs/verification. Record actual code state, upstream API/protocol versions, platform assumptions and dependencies. Resolve questions needed for this minor now; a required contract must not remain a TODO for the implementing model.
+1. **Explore:** read AGENTS, architecture, baseline assessment, requested release and prerequisite specs/verification. For `0.4`, start from the archived `application-api` spec and the implemented desktop security baseline. Record actual code state, upstream API/protocol versions, platform assumptions and dependencies. Resolve questions needed for this minor now; a required contract must not remain a TODO for the implementing model.
 2. **Proposal:** create one `openspec/changes/<minor-capability>/proposal.md` with objective, rationale, dependencies, explicit non-goals and impacted capability IDs. For example, 0.2 can use `application-runtime-foundation`. The directory name is a convention, not an instruction to create it in this session.
 3. **Spec:** add behavior deltas under that change's `specs/<capability>/spec.md`, using the installed OpenSpec version's supported delta format. Give each requirement stable wording and observable success/failure/denial/cancellation scenarios where applicable. Copy no future minor into the current delta.
 4. **Design:** document module/file ownership, public request/result/event semantics, state transitions, limits, trust boundaries, storage migration/rollback and dependency admission. Resolve current-minor implementation decisions; do not scaffold future consumers.
@@ -95,6 +95,6 @@ Use one capability spec across releases, with incremental scenarios. Keep detail
 
 The baseline `openspec:validate` script downloads `@latest` with `pnpm dlx`; it is not a reproducibly pinned validator. 0.2 must select/pin a compatible OpenSpec tool version, validate its generated proposal/spec/design/tasks format, validate active changes plus permanent specs in CI, and document exact commands. Do not install or alter tooling during a documentation-only planning session.
 
-An implementation handoff must include: requested minor only; prerequisite commit/specs; accepted change path; required file/contract boundaries; explicit non-goals; requirement-to-task/test mapping; and exit checklist. The implementing agent reports completed/blocked criteria and stops at that scope. It must not implement the next minor just because it appears next in the roadmap.
+An implementation handoff must include: requested minor only; prerequisite commit/specs; accepted change path; required file/contract boundaries; explicit non-goals; requirement-to-task/test mapping; and exit checklist. The next product implementation handoff is `0.4` persistent application settings. The implementing agent reports completed/blocked criteria and stops at that scope. It must not implement the next minor just because it appears next in the roadmap.
 
 Upstream workflow reference: [OpenSpec project](https://github.com/Fission-AI/OpenSpec), consulted 2026-09-06. Repository-specific release policy above is Lattice's decision; exact CLI/artifact compatibility is verified when pinning the tool.
