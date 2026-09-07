@@ -43,6 +43,8 @@ Angular → typed application API → Tauri → Rust application use cases
 
 0.5 introduces the management contract with a real read-only discovery/status consumer; it does not create unused inference traits. 0.8 introduces the provider port with the first local streaming consumer. 0.11 validates replacement using a remote endpoint. This avoids a special local-chat path that would need redesign later. Lattice does not delegate agent loops, stateful conversations, skills or MCP to llmster even if its API offers them.
 
+Current implementation status as of 2026-09-07: the 0.2 application API boundary is archived, and the 0.3 desktop security baseline is implemented. The next product boundary to add is 0.4 settings/local storage.
+
 ## Contracts that preserve portability
 
 - **Wire DTOs (0.2):** Rust is authoritative for serialized application data; generate committed TS bindings in `packages/types` and fail CI on regeneration diff. Planned generator: `ts-rs`, subject to a focused dependency/serde compatibility check in the 0.2 ADR. TS-only `web` fallback state stays a presentation union around native metadata. Do not edit generated DTOs. Command names/request/result mapping must share a checked inventory; type generation alone does not catch command spelling or runtime JSON errors. Keep a small bridge decoder for untrusted IPC data, verified against Rust serialization fixtures; do not add an independent schema platform.

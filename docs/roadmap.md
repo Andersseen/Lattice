@@ -1,6 +1,6 @@
 # Lattice roadmap to 1.0
 
-Engineering plan, 2026-09-06. Baseline: unpublished `0.1.0` foundation at `2e8eb7e`. **All releases below are planned, not implemented. This document authorizes no code changes by itself.** No dates, tags or releases are created by this plan.
+Engineering plan, 2026-09-06. Baseline: unpublished `0.1.0` foundation at `2e8eb7e`. Status updated 2026-09-07: `0.2` is archived, the `0.3` desktop security baseline is implemented on the active branch, and the next product implementation minor is `0.4`. Future release entries remain planned until their OpenSpec changes are accepted and verified. No dates, tags or published releases are created by this plan.
 
 The destination is a lightweight, local-first, provider-agnostic desktop agent workspace. A small Rust agent core coordinates replaceable inference, explicit tools, portable skills, MCP, memory, Spaces and basic tasks. It does not reproduce LM Studio, Hermes, an IDE or a distributed agent platform.
 
@@ -18,40 +18,42 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 
 ## Release index
 
-| Release | One outcome                                                 |
-| ------- | ----------------------------------------------------------- |
-| 0.2     | Verifiable application IPC contracts and error handling.    |
-| 0.3     | Restrictive desktop security baseline.                      |
-| 0.4     | Persistent non-secret settings.                             |
-| 0.5     | llmster discovery through a consumed ModelRuntime boundary. |
-| 0.6     | Approved, owned runtime lifecycle.                          |
-| 0.7     | Installed local model list/load/unload.                     |
-| 0.8     | First local streaming chat and cancellation.                |
-| 0.9     | Provider-independent conversation persistence.              |
-| 0.10    | Native secure credential provisioning.                      |
-| 0.11    | Remote OpenAI-compatible chat.                              |
-| 0.12    | Anthropic adapter.                                          |
-| 0.13    | Gemini adapter.                                             |
-| 0.14    | Scoped workspace reads and permissions.                     |
-| 0.15    | Bounded agent loop with registered read tools.              |
-| 0.16    | Approved conflict-checked file edits.                       |
-| 0.17    | Approved foreground command execution.                      |
-| 0.18    | Portable skills.                                            |
-| 0.19    | Trusted local MCP tool servers.                             |
-| 0.20    | Explicit workspace memory and retrieval.                    |
-| 0.21    | Persistent Spaces combining existing capabilities.          |
-| 0.22    | Manual tasks and execution results.                         |
-| 0.23    | Safe one-shot local scheduling.                             |
-| 0.24    | Optional task Kanban projection.                            |
-| 0.25    | Measured resource and cleanup budgets.                      |
-| 0.26    | Execution security qualification.                           |
-| 0.27    | Verified macOS distribution artifacts.                      |
-| 0.28    | First-use and recovery qualification.                       |
-| 1.0     | Promotion of a qualified release candidate.                 |
+| Release | Status                 | One outcome                                                 |
+| ------- | ---------------------- | ----------------------------------------------------------- |
+| 0.2     | Done, archived         | Verifiable application IPC contracts and error handling.    |
+| 0.3     | Done, archive/evidence | Restrictive desktop security baseline.                      |
+| 0.4     | Next                   | Persistent non-secret settings.                             |
+| 0.5     | Planned                | llmster discovery through a consumed ModelRuntime boundary. |
+| 0.6     | Planned                | Approved, owned runtime lifecycle.                          |
+| 0.7     | Planned                | Installed local model list/load/unload.                     |
+| 0.8     | Planned                | First local streaming chat and cancellation.                |
+| 0.9     | Planned                | Provider-independent conversation persistence.              |
+| 0.10    | Planned                | Native secure credential provisioning.                      |
+| 0.11    | Planned                | Remote OpenAI-compatible chat.                              |
+| 0.12    | Planned                | Anthropic adapter.                                          |
+| 0.13    | Planned                | Gemini adapter.                                             |
+| 0.14    | Planned                | Scoped workspace reads and permissions.                     |
+| 0.15    | Planned                | Bounded agent loop with registered read tools.              |
+| 0.16    | Planned                | Approved conflict-checked file edits.                       |
+| 0.17    | Planned                | Approved foreground command execution.                      |
+| 0.18    | Planned                | Portable skills.                                            |
+| 0.19    | Planned                | Trusted local MCP tool servers.                             |
+| 0.20    | Planned                | Explicit workspace memory and retrieval.                    |
+| 0.21    | Planned                | Persistent Spaces combining existing capabilities.          |
+| 0.22    | Planned                | Manual tasks and execution results.                         |
+| 0.23    | Planned                | Safe one-shot local scheduling.                             |
+| 0.24    | Planned, optional      | Optional task Kanban projection.                            |
+| 0.25    | Planned                | Measured resource and cleanup budgets.                      |
+| 0.26    | Planned                | Execution security qualification.                           |
+| 0.27    | Planned                | Verified macOS distribution artifacts.                      |
+| 0.28    | Planned                | First-use and recovery qualification.                       |
+| 1.0     | Planned                | Promotion of a qualified release candidate.                 |
 
 0.24 may be skipped without renumbering. All other listed capabilities are required. Provider adapters are separate minors; filesystem and terminal are distinct authorization surfaces. Persistence precedes history, credentials precede remote requests, and permissions precede the agent. Provider abstraction starts with the first real completion consumer, avoiding a later local-chat rewrite.
 
 ## 0.2 — Application Runtime Foundation
+
+**Status:** done and archived as `openspec/changes/archive/2026-09-07-application-runtime-foundation`; permanent behavior lives in `openspec/specs/application-api/spec.md`.
 
 **Objective:** make the existing application boundary deterministic and resistant to contract drift.
 
@@ -79,6 +81,8 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 
 ## 0.3 — Desktop security baseline
 
+**Status:** implementation done on the active branch. The branch has restrictive CSP, explicit main-window command permission, fatal startup exit policy, advisory workflow/policy and automated verification. Native WebView denial evidence and P0 idle measurement remain recorded follow-up evidence before final archive, not a new product minor.
+
 **Objective:** restrict the shipped WebView and command exposure before adding native capabilities.
 
 **Why now:** process/network features must not inherit disabled CSP. **Dependencies:** 0.2.
@@ -104,6 +108,8 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 **Exit:** native baseline passes before process or provider access is exposed.
 
 ## 0.4 — Persistent application settings
+
+**Status:** next product implementation minor.
 
 **Objective:** retain validated non-secret preferences across restart.
 
@@ -791,4 +797,4 @@ Advanced learning/multi-agent/planning, Vertex/Wisp integration, extra runtimes/
 
 ## Next implementation handoff
 
-**Only 0.2 — Application Runtime Foundation.** Read AGENTS, current architecture/specs, this scope and linked v1 constraints; explore and materialize one OpenSpec change before coding. Do not implement 0.3 CSP or future settings/runtime capabilities as part of 0.2. This planning session leaves every implementation scope untouched.
+**Only 0.4 — Persistent application settings.** Start from the archived `0.2` application API spec and the implemented `0.3` desktop security baseline. Read AGENTS, current architecture/specs, this scope and linked v1 constraints; explore actual prerequisite state; then create one OpenSpec change for `application-settings` / `local-storage` before coding. Do not implement model runtime, providers, chat, credentials or workspace capabilities as part of `0.4`.

@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Lattice",
         "width": 1120,
         "height": 760,
@@ -20,7 +21,17 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self' customprotocol: asset:",
+        "script-src": "'self'",
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "img-src": "'self' data: asset: http://asset.localhost",
+        "font-src": "'self' data:",
+        "connect-src": "ipc: http://ipc.localhost",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "frame-src": "'none'"
+      }
     }
   },
   "bundle": {
