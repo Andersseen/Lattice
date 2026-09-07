@@ -15,7 +15,7 @@ describe('app settings browser fallback', () => {
     });
 
     expect(updated).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       revision: current.revision + 1,
       appearance: 'dark',
       idleUnloadMinutes: 20

@@ -5,9 +5,18 @@ export {
   type AppError,
   type AppSettings,
   type BuildProfile,
+  type ConfigureModelRuntimeRequest,
   type NativeAppInfo,
   type NativeAppRuntime,
+  type ModelRuntimeAvailability,
+  type ModelRuntimeStatus,
+  type ProbeModelRuntimeRequest,
   type ResetAppSettingsRequest,
+  type RuntimeDaemonObservation,
+  type RuntimeDaemonStatus,
+  type RuntimeProbeApproval,
+  type RuntimeServerObservation,
+  type RuntimeServerStatus,
   type UpdateAppSettingsRequest
 } from './generated';
 

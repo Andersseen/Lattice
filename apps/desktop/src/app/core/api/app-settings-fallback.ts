@@ -41,7 +41,7 @@ export function resetWebSettings(request: ResetAppSettingsRequest): AppSettings 
 
 function createDefaultWebSettings(): AppSettings {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     revision: 1,
     appearance: 'system',
     idleUnloadMinutes: 5

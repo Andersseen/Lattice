@@ -4,6 +4,9 @@ import {
   type AppError,
   type AppInfo,
   type AppSettings,
+  type ConfigureModelRuntimeRequest,
+  type ModelRuntimeStatus,
+  type ProbeModelRuntimeRequest,
   type ResetAppSettingsRequest,
   type UpdateAppSettingsRequest
 } from '@lattice/types';
@@ -11,11 +14,18 @@ import {
 import {
   decodeAppInfo,
   decodeAppSettings,
+  decodeModelRuntimeStatus,
   normalizeAppError,
+  normalizeModelRuntimeError,
   normalizeSettingsError
 } from './app-wire';
 import { getWebSettings, resetWebSettings, updateWebSettings } from './app-settings-fallback';
 import { createWebFallbackInfo } from './app-info-fallback';
+import {
+  configureWebModelRuntime,
+  getWebModelRuntimeStatus,
+  probeWebModelRuntime
+} from './model-runtime-fallback';
 import { isTauriRuntime } from './tauri-runtime';
 
 @Injectable({ providedIn: 'root' })
@@ -77,6 +87,53 @@ export class AppApiService {
       );
     } catch (error: unknown) {
       throw normalizeSettingsError(error);
+    }
+  }
+
+  async getModelRuntimeStatus(): Promise<ModelRuntimeStatus> {
+    if (!isTauriRuntime()) {
+      return getWebModelRuntimeStatus();
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeModelRuntimeStatus(await invoke<unknown>(APP_COMMANDS.getModelRuntimeStatus));
+    } catch (error: unknown) {
+      throw normalizeModelRuntimeError(error);
+    }
+  }
+
+  async configureModelRuntime(request: ConfigureModelRuntimeRequest): Promise<ModelRuntimeStatus> {
+    if (!isTauriRuntime()) {
+      return configureWebModelRuntime(request);
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeModelRuntimeStatus(
+        await invoke<unknown>(APP_COMMANDS.configureModelRuntime, {
+          request
+        })
+      );
+    } catch (error: unknown) {
+      throw normalizeModelRuntimeError(error);
+    }
+  }
+
+  async probeModelRuntime(request: ProbeModelRuntimeRequest): Promise<ModelRuntimeStatus> {
+    if (!isTauriRuntime()) {
+      return probeWebModelRuntime(request);
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeModelRuntimeStatus(
+        await invoke<unknown>(APP_COMMANDS.probeModelRuntime, {
+          request
+        })
+      );
+    } catch (error: unknown) {
+      throw normalizeModelRuntimeError(error);
     }
   }
 }

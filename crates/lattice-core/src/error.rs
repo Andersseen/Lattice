@@ -49,6 +49,24 @@ impl AppError {
         }
     }
 
+    pub const fn invalid_runtime(message: &'static str) -> Self {
+        Self {
+            code: "runtime.invalid",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn runtime_conflict(message: &'static str) -> Self {
+        Self {
+            code: "runtime.conflict",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
     pub const fn storage_unavailable(message: &'static str) -> Self {
         Self {
             code: "storage.unavailable",

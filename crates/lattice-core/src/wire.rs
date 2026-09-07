@@ -1,4 +1,7 @@
 use crate::app_info::GET_APP_INFO_COMMAND;
+use crate::model_runtime::{
+    CONFIGURE_MODEL_RUNTIME_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND, PROBE_MODEL_RUNTIME_COMMAND,
+};
 use crate::settings::{
     GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
 };
@@ -11,7 +14,10 @@ export const APP_COMMANDS = {{
   getAppInfo: '{get_app_info_command}',
   getAppSettings: '{get_app_settings_command}',
   updateAppSettings: '{update_app_settings_command}',
-  resetAppSettings: '{reset_app_settings_command}'
+  resetAppSettings: '{reset_app_settings_command}',
+  getModelRuntimeStatus: '{get_model_runtime_status_command}',
+  configureModelRuntime: '{configure_model_runtime_command}',
+  probeModelRuntime: '{probe_model_runtime_command}'
 }} as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -21,6 +27,13 @@ export type NativeAppRuntime = 'tauri';
 export type BuildProfile = 'debug' | 'release';
 
 export type AppearancePreference = 'system' | 'light' | 'dark';
+
+export type ModelRuntimeAvailability =
+  'missing' | 'unsupported' | 'stopped' | 'running' | 'unreachable' | 'unknown';
+
+export type RuntimeDaemonStatus = 'running' | 'notRunning' | 'unknown';
+
+export type RuntimeServerStatus = 'running' | 'stopped' | 'unreachable' | 'unknown';
 
 export interface NativeAppInfo {{
   readonly name: string;
@@ -53,11 +66,54 @@ export interface UpdateAppSettingsRequest {{
 export interface ResetAppSettingsRequest {{
   readonly expectedRevision: number;
 }}
+
+export interface RuntimeProbeApproval {{
+  readonly executableFingerprint: string;
+  readonly cliVersion: string;
+  readonly checkedAtUnixSeconds: number;
+}}
+
+export interface RuntimeDaemonObservation {{
+  readonly status: RuntimeDaemonStatus;
+  readonly pid?: number;
+  readonly isDaemon?: boolean;
+  readonly version?: string;
+}}
+
+export interface RuntimeServerObservation {{
+  readonly status: RuntimeServerStatus;
+  readonly port?: number;
+  readonly endpoint?: string;
+}}
+
+export interface ModelRuntimeStatus {{
+  readonly revision: number;
+  readonly executablePath?: string;
+  readonly availability: ModelRuntimeAvailability;
+  readonly cliVersion?: string;
+  readonly approved?: RuntimeProbeApproval;
+  readonly daemon: RuntimeDaemonObservation;
+  readonly server: RuntimeServerObservation;
+  readonly lastCheckedUnixSeconds?: number;
+  readonly message: string;
+}}
+
+export interface ConfigureModelRuntimeRequest {{
+  readonly expectedRevision: number;
+  readonly executablePath: string;
+}}
+
+export interface ProbeModelRuntimeRequest {{
+  readonly expectedRevision: number;
+}}
 "#,
         get_app_info_command = GET_APP_INFO_COMMAND,
         get_app_settings_command = GET_APP_SETTINGS_COMMAND,
         update_app_settings_command = UPDATE_APP_SETTINGS_COMMAND,
-        reset_app_settings_command = RESET_APP_SETTINGS_COMMAND
+        reset_app_settings_command = RESET_APP_SETTINGS_COMMAND,
+        get_model_runtime_status_command = GET_MODEL_RUNTIME_STATUS_COMMAND,
+        configure_model_runtime_command = CONFIGURE_MODEL_RUNTIME_COMMAND,
+        probe_model_runtime_command = PROBE_MODEL_RUNTIME_COMMAND
     )
 }
 

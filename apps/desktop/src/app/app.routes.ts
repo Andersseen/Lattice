@@ -10,6 +10,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/system/system.page').then((module) => module.SystemPage)
   },
   {
+    path: 'models',
+    loadComponent: () => import('./pages/models/models.page').then((module) => module.ModelsPage)
+  },
+  {
     path: 'settings',
     loadComponent: () =>
       import('./pages/settings/settings.page').then((module) => module.SettingsPage)

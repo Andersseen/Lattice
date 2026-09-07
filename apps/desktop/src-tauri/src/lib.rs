@@ -1,6 +1,6 @@
 use lattice_core::{
-    app_info, AppError, AppInfo, AppSettings, ResetAppSettingsRequest, SettingsStore,
-    UpdateAppSettingsRequest,
+    app_info, AppError, AppInfo, AppSettings, ConfigureModelRuntimeRequest, ModelRuntimeStatus,
+    ProbeModelRuntimeRequest, ResetAppSettingsRequest, SettingsStore, UpdateAppSettingsRequest,
 };
 use std::{path::PathBuf, sync::Mutex};
 use tauri::Manager;
@@ -38,6 +38,29 @@ fn reset_app_settings(
     with_settings_store(&state, |store| store.reset(request))
 }
 
+#[tauri::command]
+fn get_model_runtime_status(
+    state: tauri::State<'_, DesktopState>,
+) -> Result<ModelRuntimeStatus, AppError> {
+    with_settings_store(&state, |store| store.read_model_runtime_status())
+}
+
+#[tauri::command]
+fn configure_model_runtime(
+    state: tauri::State<'_, DesktopState>,
+    request: ConfigureModelRuntimeRequest,
+) -> Result<ModelRuntimeStatus, AppError> {
+    with_settings_store(&state, |store| store.configure_model_runtime(request))
+}
+
+#[tauri::command]
+fn probe_model_runtime(
+    state: tauri::State<'_, DesktopState>,
+    request: ProbeModelRuntimeRequest,
+) -> Result<ModelRuntimeStatus, AppError> {
+    with_settings_store(&state, |store| store.probe_model_runtime(request))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if let Err(error) = run_desktop_shell() {
@@ -64,7 +87,10 @@ fn run_desktop_shell() -> Result<(), tauri::Error> {
             get_app_info,
             get_app_settings,
             update_app_settings,
-            reset_app_settings
+            reset_app_settings,
+            get_model_runtime_status,
+            configure_model_runtime,
+            probe_model_runtime
         ])
         .run(tauri::generate_context!())
 }
@@ -97,8 +123,9 @@ fn startup_failure_message(error: &tauri::Error) -> String {
 mod tests {
     use super::{get_app_info, startup_failure_message, STARTUP_FAILURE_EXIT_CODE};
     use lattice_core::{
-        AppRuntime, GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND,
-        UPDATE_APP_SETTINGS_COMMAND,
+        AppRuntime, CONFIGURE_MODEL_RUNTIME_COMMAND, GET_APP_INFO_COMMAND,
+        GET_APP_SETTINGS_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND, PROBE_MODEL_RUNTIME_COMMAND,
+        RESET_APP_SETTINGS_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
     };
     use serde_json::Value;
     use std::{error::Error, fs, io, path::PathBuf};
@@ -121,13 +148,19 @@ mod tests {
                 GET_APP_INFO_COMMAND,
                 GET_APP_SETTINGS_COMMAND,
                 UPDATE_APP_SETTINGS_COMMAND,
-                RESET_APP_SETTINGS_COMMAND
+                RESET_APP_SETTINGS_COMMAND,
+                GET_MODEL_RUNTIME_STATUS_COMMAND,
+                CONFIGURE_MODEL_RUNTIME_COMMAND,
+                PROBE_MODEL_RUNTIME_COMMAND
             ],
             [
                 "get_app_info",
                 "get_app_settings",
                 "update_app_settings",
-                "reset_app_settings"
+                "reset_app_settings",
+                "get_model_runtime_status",
+                "configure_model_runtime",
+                "probe_model_runtime"
             ]
         );
     }
@@ -200,7 +233,8 @@ mod tests {
             string_array(&capability, "permissions")?,
             vec![
                 "allow-get-app-info".to_string(),
-                "allow-application-settings".to_string()
+                "allow-application-settings".to_string(),
+                "allow-model-runtime-discovery".to_string()
             ]
         );
         assert!(capability.get("remote").is_none());

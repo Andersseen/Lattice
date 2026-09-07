@@ -4,7 +4,10 @@ export const APP_COMMANDS = {
   getAppInfo: 'get_app_info',
   getAppSettings: 'get_app_settings',
   updateAppSettings: 'update_app_settings',
-  resetAppSettings: 'reset_app_settings'
+  resetAppSettings: 'reset_app_settings',
+  getModelRuntimeStatus: 'get_model_runtime_status',
+  configureModelRuntime: 'configure_model_runtime',
+  probeModelRuntime: 'probe_model_runtime'
 } as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -14,6 +17,13 @@ export type NativeAppRuntime = 'tauri';
 export type BuildProfile = 'debug' | 'release';
 
 export type AppearancePreference = 'system' | 'light' | 'dark';
+
+export type ModelRuntimeAvailability =
+  'missing' | 'unsupported' | 'stopped' | 'running' | 'unreachable' | 'unknown';
+
+export type RuntimeDaemonStatus = 'running' | 'notRunning' | 'unknown';
+
+export type RuntimeServerStatus = 'running' | 'stopped' | 'unreachable' | 'unknown';
 
 export interface NativeAppInfo {
   readonly name: string;
@@ -44,5 +54,45 @@ export interface UpdateAppSettingsRequest {
 }
 
 export interface ResetAppSettingsRequest {
+  readonly expectedRevision: number;
+}
+
+export interface RuntimeProbeApproval {
+  readonly executableFingerprint: string;
+  readonly cliVersion: string;
+  readonly checkedAtUnixSeconds: number;
+}
+
+export interface RuntimeDaemonObservation {
+  readonly status: RuntimeDaemonStatus;
+  readonly pid?: number;
+  readonly isDaemon?: boolean;
+  readonly version?: string;
+}
+
+export interface RuntimeServerObservation {
+  readonly status: RuntimeServerStatus;
+  readonly port?: number;
+  readonly endpoint?: string;
+}
+
+export interface ModelRuntimeStatus {
+  readonly revision: number;
+  readonly executablePath?: string;
+  readonly availability: ModelRuntimeAvailability;
+  readonly cliVersion?: string;
+  readonly approved?: RuntimeProbeApproval;
+  readonly daemon: RuntimeDaemonObservation;
+  readonly server: RuntimeServerObservation;
+  readonly lastCheckedUnixSeconds?: number;
+  readonly message: string;
+}
+
+export interface ConfigureModelRuntimeRequest {
+  readonly expectedRevision: number;
+  readonly executablePath: string;
+}
+
+export interface ProbeModelRuntimeRequest {
   readonly expectedRevision: number;
 }

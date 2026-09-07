@@ -1,0 +1,89 @@
+<section class="models" aria-labelledby="models-title">
+  <div class="heading">
+    <p class="eyebrow">Model runtime</p>
+    <h1 id="models-title">Runtime discovery</h1>
+  </div>
+
+  @if (isLoading() && status() === null) {
+  <p class="status-text">Loading runtime status.</p>
+  } @else { @if (error(); as runtimeError) {
+  <div class="notice" role="alert">
+    <p>{{ runtimeError.message }}</p>
+    <volt-button type="button" variant="outline" size="sm" (click)="refresh()">Retry</volt-button>
+  </div>
+  } @if (status(); as runtimeStatus) {
+  <section class="summary" aria-label="Runtime summary">
+    <article>
+      <span>Status</span>
+      <strong>{{ runtimeStatus.availability }}</strong>
+    </article>
+    <article>
+      <span>Daemon</span>
+      <strong>{{ runtimeStatus.daemon.status }}</strong>
+    </article>
+    <article>
+      <span>Server</span>
+      <strong>{{ runtimeStatus.server.status }}</strong>
+    </article>
+  </section>
+
+  <section class="runtime-card" aria-labelledby="runtime-path-title">
+    <div>
+      <h2 id="runtime-path-title">Executable</h2>
+      <p>{{ runtimeStatus.message }}</p>
+    </div>
+
+    <label>
+      <span>Path</span>
+      <input
+        type="text"
+        spellcheck="false"
+        autocomplete="off"
+        [value]="executablePath()"
+        (input)="setExecutablePath($event)"
+      />
+    </label>
+
+    <div class="actions">
+      <volt-button
+        type="button"
+        variant="outline"
+        size="md"
+        [disabled]="!canConfigure()"
+        (click)="configure()"
+      >
+        {{ isSaving() ? 'Saving' : 'Configure' }}
+      </volt-button>
+      <volt-button
+        type="button"
+        size="md"
+        [disabled]="!canProbe() || isProbing()"
+        (click)="probe()"
+      >
+        {{ isProbing() ? 'Checking' : 'Probe' }}
+      </volt-button>
+    </div>
+  </section>
+
+  <section class="details" aria-label="Runtime details">
+    <dl>
+      <div>
+        <dt>Revision</dt>
+        <dd>{{ runtimeStatus.revision }}</dd>
+      </div>
+      <div>
+        <dt>CLI</dt>
+        <dd>{{ runtimeStatus.cliVersion ?? 'Not checked' }}</dd>
+      </div>
+      <div>
+        <dt>Endpoint</dt>
+        <dd>{{ runtimeStatus.server.endpoint ?? 'Unavailable' }}</dd>
+      </div>
+      <div>
+        <dt>Last checked</dt>
+        <dd>{{ runtimeStatus.lastCheckedUnixSeconds ?? 'Never' }}</dd>
+      </div>
+    </dl>
+  </section>
+  } }
+</section>

@@ -27,6 +27,21 @@ test('settings can be edited in browser smoke mode', async ({ page }) => {
   await page.getByRole('spinbutton', { name: 'Minutes' }).fill('12');
   await page.getByRole('button', { name: 'Save' }).click();
 
-  await expect(page.getByText('Revision 2 · Schema 1')).toBeVisible();
+  await expect(page.getByText('Revision 2 · Schema 2')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-appearance', 'dark');
+});
+
+test('model runtime discovery can be configured in browser smoke mode', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Models', exact: true }).click();
+
+  await expect(page).toHaveURL(/\/models$/);
+  await expect(page.getByRole('heading', { name: 'Runtime discovery' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Path' }).fill('/usr/local/bin/lms');
+  await page.getByRole('button', { name: 'Configure' }).click();
+  await expect(page.getByText('Approve a runtime probe')).toBeVisible();
+  await page.getByRole('button', { name: 'Probe' }).click();
+
+  await expect(page.getByText('stopped').first()).toBeVisible();
+  await expect(page.getByText('0.0.47')).toBeVisible();
 });
