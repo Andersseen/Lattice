@@ -1,0 +1,51 @@
+name: Dependency Advisories
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - pnpm-lock.yaml
+      - apps/**/package.json
+      - packages/**/package.json
+      - Cargo.toml
+      - Cargo.lock
+      - crates/**/Cargo.toml
+      - apps/**/Cargo.toml
+  schedule:
+    - cron: '17 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-advisories:
+    name: Dependency Advisories
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6.1.0
+        with:
+          version: 10.30.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: JavaScript Advisories
+        run: pnpm audit --audit-level high
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Rust Advisories
+        run: cargo audit --deny yanked

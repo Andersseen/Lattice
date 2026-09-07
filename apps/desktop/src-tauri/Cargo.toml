@@ -12,6 +12,7 @@ name = "lattice_desktop"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
+lattice-core.workspace = true
 tauri-build.workspace = true
 
 [dependencies]
@@ -19,6 +20,9 @@ lattice-core.workspace = true
 serde.workspace = true
 tauri.workspace = true
 tauri-plugin-log.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [lints]
 workspace = true

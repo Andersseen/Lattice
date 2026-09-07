@@ -7,4 +7,4 @@
 - [x] Prevent older refreshes from overwriting newer app info state.
 - [x] Enable strict Angular template checking and spec-source typechecking.
 - [x] Verify Rust, TypeScript, Angular, and E2E checks.
-- [ ] Reconcile permanent specs and documentation after verification.
+- [x] Reconcile permanent specs and documentation after verification.
