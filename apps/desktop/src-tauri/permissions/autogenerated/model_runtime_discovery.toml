@@ -1,0 +1,19 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-model-runtime-discovery"
+description = "Enables model runtime discovery commands without any pre-configured scope."
+commands.allow = [
+  "get_model_runtime_status",
+  "configure_model_runtime",
+  "probe_model_runtime",
+]
+
+[[permission]]
+identifier = "deny-model-runtime-discovery"
+description = "Denies model runtime discovery commands without any pre-configured scope."
+commands.deny = [
+  "get_model_runtime_status",
+  "configure_model_runtime",
+  "probe_model_runtime",
+]

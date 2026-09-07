@@ -53,12 +53,13 @@ This is an inspection of existing behavior, not an implementation change. No dep
 
 ## Current Forward Path
 
-As of the active 2026-09-07 desktop security branch, `0.2` has been archived into the permanent `application-api` spec and the `0.3` baseline has been implemented in configuration/code/docs. The next product implementation minor is `0.4` persistent non-secret settings. Remaining native WebView denial evidence and P0 idle measurement belong to `0.3` verification/archive, not to expanding `0.4`.
+As of the active 2026-09-07 roadmap branch, `0.2` has been archived into the permanent `application-api` spec; `0.3`, `0.4`, and `0.5` are implemented in configuration/code/docs with their recorded evidence limits. The next product implementation minor is `0.6` approved runtime lifecycle. Remaining native WebView/P0 evidence for `0.3`, native GUI restart evidence for `0.4`, and opt-in real llmster smoke evidence for `0.5` belong to those minors' verification/archive, not to expanding `0.6`.
 
 ## Priority debts
 
 1. **0.3 verification/archive:** complete native WebView denial evidence and P0 idle resource capture before archiving the desktop security change.
-2. **0.4:** introduce SQLite only for its first real consumer: non-secret settings. Define migrations and failure recovery before conversations/tasks.
-3. **0.5–0.7:** distinguish runtime discovery, daemon/server ownership and model state; never equate OpenAI compatibility with lifecycle support.
-4. **0.10 / 0.14 onward:** credentials before remote traffic, workspace policy before tools, task-specific grants before unattended work.
-5. **0.25–0.28:** measured resource behavior, adversarial security verification, actual packaging and first-use/upgrade qualification close v1; they do not defer earlier safeguards.
+2. **0.4 archive evidence:** capture native GUI restart evidence for persistent settings before archiving.
+3. **0.5 archive evidence:** run opt-in real llmster discovery smoke where installed; a missing prerequisite is skipped, not passed.
+4. **0.6–0.7:** distinguish daemon/server ownership and model state; never equate OpenAI compatibility with lifecycle support.
+5. **0.10 / 0.14 onward:** credentials before remote traffic, workspace policy before tools, task-specific grants before unattended work.
+6. **0.25–0.28:** measured resource behavior, adversarial security verification, actual packaging and first-use/upgrade qualification close v1; they do not defer earlier safeguards.

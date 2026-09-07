@@ -1,6 +1,14 @@
-import type { AppError, AppInfo, NativeAppInfo } from '@lattice/types';
+import type {
+  AppError,
+  AppInfo,
+  AppSettings,
+  ModelRuntimeStatus,
+  NativeAppInfo
+} from '@lattice/types';
 
 const SAFE_APP_INFO_ERROR = 'Lattice could not read application information.';
+const SAFE_APP_SETTINGS_ERROR = 'Lattice could not read application settings.';
+const SAFE_MODEL_RUNTIME_ERROR = 'Lattice could not read model runtime status.';
 const MAX_SAFE_MESSAGE_LENGTH = 240;
 
 export function decodeAppInfo(value: unknown): AppInfo {
@@ -11,7 +19,23 @@ export function decodeAppInfo(value: unknown): AppInfo {
   throw createBridgeError(SAFE_APP_INFO_ERROR);
 }
 
-export function normalizeAppError(error: unknown): AppError {
+export function decodeAppSettings(value: unknown): AppSettings {
+  if (isAppSettings(value)) {
+    return value;
+  }
+
+  throw createBridgeError(SAFE_APP_SETTINGS_ERROR);
+}
+
+export function decodeModelRuntimeStatus(value: unknown): ModelRuntimeStatus {
+  if (isModelRuntimeStatus(value)) {
+    return value;
+  }
+
+  throw createBridgeError(SAFE_MODEL_RUNTIME_ERROR);
+}
+
+export function normalizeAppError(error: unknown, fallbackMessage = SAFE_APP_INFO_ERROR): AppError {
   if (isAppError(error)) {
     const safeError: AppError = {
       code: error.code,
@@ -29,7 +53,15 @@ export function normalizeAppError(error: unknown): AppError {
     return safeError;
   }
 
-  return createBridgeError(SAFE_APP_INFO_ERROR);
+  return createBridgeError(fallbackMessage);
+}
+
+export function normalizeSettingsError(error: unknown): AppError {
+  return normalizeAppError(error, SAFE_APP_SETTINGS_ERROR);
+}
+
+export function normalizeModelRuntimeError(error: unknown): AppError {
+  return normalizeAppError(error, SAFE_MODEL_RUNTIME_ERROR);
 }
 
 function createBridgeError(message: string): AppError {
@@ -56,6 +88,118 @@ function isNativeAppInfo(value: unknown): value is NativeAppInfo {
 
 function isBuildProfile(value: unknown): value is NativeAppInfo['buildProfile'] {
   return value === 'debug' || value === 'release';
+}
+
+function isAppSettings(value: unknown): value is AppSettings {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isPositiveInteger(value['schemaVersion']) &&
+    isPositiveInteger(value['revision']) &&
+    isAppearancePreference(value['appearance']) &&
+    isIdleUnloadMinutes(value['idleUnloadMinutes'])
+  );
+}
+
+function isAppearancePreference(value: unknown): value is AppSettings['appearance'] {
+  return value === 'system' || value === 'light' || value === 'dark';
+}
+
+function isIdleUnloadMinutes(value: unknown): boolean {
+  return Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 120;
+}
+
+function isPositiveInteger(value: unknown): boolean {
+  return Number.isInteger(value) && Number(value) >= 1;
+}
+
+function isModelRuntimeStatus(value: unknown): value is ModelRuntimeStatus {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isPositiveInteger(value['revision']) &&
+    optionalString(value['executablePath']) &&
+    isModelRuntimeAvailability(value['availability']) &&
+    optionalString(value['cliVersion']) &&
+    optionalRuntimeProbeApproval(value['approved']) &&
+    isRuntimeDaemonObservation(value['daemon']) &&
+    isRuntimeServerObservation(value['server']) &&
+    optionalPositiveInteger(value['lastCheckedUnixSeconds']) &&
+    typeof value['message'] === 'string'
+  );
+}
+
+function isModelRuntimeAvailability(value: unknown): boolean {
+  return (
+    value === 'missing' ||
+    value === 'unsupported' ||
+    value === 'stopped' ||
+    value === 'running' ||
+    value === 'unreachable' ||
+    value === 'unknown'
+  );
+}
+
+function optionalRuntimeProbeApproval(value: unknown): boolean {
+  if (value === undefined) {
+    return true;
+  }
+
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value['executableFingerprint'] === 'string' &&
+    typeof value['cliVersion'] === 'string' &&
+    isPositiveInteger(value['checkedAtUnixSeconds'])
+  );
+}
+
+function isRuntimeDaemonObservation(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    (value['status'] === 'running' ||
+      value['status'] === 'notRunning' ||
+      value['status'] === 'unknown') &&
+    optionalPositiveInteger(value['pid']) &&
+    optionalBoolean(value['isDaemon']) &&
+    optionalString(value['version'])
+  );
+}
+
+function isRuntimeServerObservation(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    (value['status'] === 'running' ||
+      value['status'] === 'stopped' ||
+      value['status'] === 'unreachable' ||
+      value['status'] === 'unknown') &&
+    optionalPositiveInteger(value['port']) &&
+    optionalString(value['endpoint'])
+  );
+}
+
+function optionalString(value: unknown): boolean {
+  return value === undefined || typeof value === 'string';
+}
+
+function optionalBoolean(value: unknown): boolean {
+  return value === undefined || typeof value === 'boolean';
+}
+
+function optionalPositiveInteger(value: unknown): boolean {
+  return value === undefined || isPositiveInteger(value);
 }
 
 function isAppError(value: unknown): value is AppError {

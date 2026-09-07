@@ -1,0 +1,81 @@
+<section class="settings" aria-labelledby="settings-title">
+  <div class="heading">
+    <p class="eyebrow">Application settings</p>
+    <h1 id="settings-title">Preferences</h1>
+  </div>
+
+  @if (isLoading() && settings() === null) {
+  <p class="status">Loading settings.</p>
+  } @else { @if (error(); as settingsError) {
+  <div class="notice" role="alert">
+    <p>{{ settingsError.message }}</p>
+    <volt-button type="button" variant="outline" size="sm" (click)="retry()">Retry</volt-button>
+  </div>
+  } @if (settings(); as currentSettings) {
+  <div class="settings-grid">
+    <section class="setting-group" aria-labelledby="appearance-title">
+      <div>
+        <h2 id="appearance-title">Appearance</h2>
+        <p>Current: {{ currentSettings.appearance }}</p>
+      </div>
+
+      <div class="segmented" role="group" aria-label="Appearance">
+        @for (option of appearanceOptions; track option.value) {
+        <button
+          type="button"
+          [class.active]="draftAppearance() === option.value"
+          [attr.aria-pressed]="draftAppearance() === option.value"
+          (click)="setAppearance(option.value)"
+        >
+          {{ option.label }}
+        </button>
+        }
+      </div>
+    </section>
+
+    <section class="setting-group" aria-labelledby="idle-unload-title">
+      <div>
+        <h2 id="idle-unload-title">Idle unload</h2>
+        <p>Current: {{ currentSettings.idleUnloadMinutes }} min</p>
+      </div>
+
+      <label class="number-field">
+        <span>Minutes</span>
+        <input
+          type="number"
+          min="1"
+          max="120"
+          step="1"
+          inputmode="numeric"
+          [value]="draftIdleUnloadMinutes()"
+          [attr.aria-invalid]="!idleUnloadIsValid()"
+          (input)="setIdleUnloadMinutes($event)"
+        />
+      </label>
+      @if (!idleUnloadIsValid()) {
+      <p class="field-error" role="alert">Use a value from 1 to 120.</p>
+      }
+    </section>
+  </div>
+
+  <footer class="actions">
+    <span
+      >Revision {{ currentSettings.revision }} · Schema {{ currentSettings.schemaVersion }}</span
+    >
+    <div>
+      <volt-button
+        type="button"
+        variant="outline"
+        size="md"
+        [disabled]="isSaving()"
+        (click)="reset()"
+      >
+        Reset
+      </volt-button>
+      <volt-button type="button" size="md" [disabled]="!canSave()" (click)="save()">
+        {{ isSaving() ? 'Saving' : 'Save' }}
+      </volt-button>
+    </div>
+  </footer>
+  } }
+</section>
