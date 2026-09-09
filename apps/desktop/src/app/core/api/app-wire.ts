@@ -128,8 +128,44 @@ function isModelRuntimeStatus(value: unknown): value is ModelRuntimeStatus {
     optionalRuntimeProbeApproval(value['approved']) &&
     isRuntimeDaemonObservation(value['daemon']) &&
     isRuntimeServerObservation(value['server']) &&
+    isRuntimeOwnership(value['ownership']) &&
+    optionalRuntimeOperationOutcome(value['lastOperation']) &&
     optionalPositiveInteger(value['lastCheckedUnixSeconds']) &&
     typeof value['message'] === 'string'
+  );
+}
+
+function isRuntimeOwnership(value: unknown): value is ModelRuntimeStatus['ownership'] {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (value['state'] === 'attached' || value['state'] === 'unknown') {
+    return true;
+  }
+
+  return (
+    value['state'] === 'owned' &&
+    isPositiveInteger(value['daemonPid']) &&
+    typeof value['executableFingerprint'] === 'string' &&
+    isPositiveInteger(value['ownedSinceUnixSeconds'])
+  );
+}
+
+function optionalRuntimeOperationOutcome(value: unknown): boolean {
+  if (value === undefined) {
+    return true;
+  }
+
+  return (
+    value === 'started' ||
+    value === 'alreadyRunning' ||
+    value === 'stopped' ||
+    value === 'alreadyStopped' ||
+    value === 'refused' ||
+    value === 'cancelled' ||
+    value === 'timedOut' ||
+    value === 'failed'
   );
 }
 

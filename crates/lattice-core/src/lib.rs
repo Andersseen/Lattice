@@ -7,10 +7,13 @@ mod wire;
 pub use app_info::{app_info, AppInfo, AppRuntime, BuildProfile, GET_APP_INFO_COMMAND};
 pub use error::AppError;
 pub use model_runtime::{
-    ConfigureModelRuntimeRequest, ModelRuntimeAvailability, ModelRuntimeStatus,
-    ProbeModelRuntimeRequest, RuntimeDaemonObservation, RuntimeDaemonStatus, RuntimeProbeApproval,
-    RuntimeServerObservation, RuntimeServerStatus, CONFIGURE_MODEL_RUNTIME_COMMAND,
-    GET_MODEL_RUNTIME_STATUS_COMMAND, PROBE_MODEL_RUNTIME_COMMAND,
+    CancelModelRuntimeOperationRequest, ConfigureModelRuntimeRequest, ModelRuntimeAvailability,
+    ModelRuntimeStatus, ProbeModelRuntimeRequest, RuntimeDaemonObservation, RuntimeDaemonStatus,
+    RuntimeOperationOutcome, RuntimeOwnership, RuntimeProbeApproval, RuntimeServerObservation,
+    RuntimeServerStatus, StartModelRuntimeRequest, StopModelRuntimeRequest,
+    CANCEL_MODEL_RUNTIME_OPERATION_COMMAND, CONFIGURE_MODEL_RUNTIME_COMMAND,
+    GET_MODEL_RUNTIME_STATUS_COMMAND, PROBE_MODEL_RUNTIME_COMMAND, SHUTDOWN_STOP_DEADLINE,
+    START_MODEL_RUNTIME_COMMAND, STOP_MODEL_RUNTIME_COMMAND,
 };
 pub use settings::{
     AppSettings, AppearancePreference, ResetAppSettingsRequest, SettingsStore,

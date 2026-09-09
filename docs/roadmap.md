@@ -1,6 +1,6 @@
 # Lattice roadmap to 1.0
 
-Engineering plan, 2026-09-06. Baseline: unpublished `0.1.0` foundation at `2e8eb7e`. Status updated 2026-09-07: `0.2` is archived, the `0.3` desktop security baseline is implemented on the active branch, `0.4` persistent settings is implemented with native GUI restart evidence pending before archive, and `0.5` ModelRuntime discovery is implemented with real llmster smoke evidence pending before archive. Future release entries remain planned until their OpenSpec changes are accepted and verified. No dates, tags or published releases are created by this plan.
+Engineering plan, 2026-09-06. Baseline: unpublished `0.1.0` foundation at `2e8eb7e`. Status updated 2026-09-09: `0.2` is archived, the `0.3` desktop security baseline is implemented on the active branch, `0.4` persistent settings is implemented with native GUI restart evidence pending before archive, `0.5` ModelRuntime discovery is implemented with real llmster smoke evidence pending before archive, and `0.6` llmster lifecycle is implemented on the active branch with a real successful start/stop cycle and the P1 profile pending before archive (this machine's llmster installation cannot wake without a one-time GUI first run; see `docs/verification/0.6-llmster-lifecycle.md`). Future release entries remain planned until their OpenSpec changes are accepted and verified. No dates, tags or published releases are created by this plan.
 
 The destination is a lightweight, local-first, provider-agnostic desktop agent workspace. A small Rust agent core coordinates replaceable inference, explicit tools, portable skills, MCP, memory, Spaces and basic tasks. It does not reproduce LM Studio, Hermes, an IDE or a distributed agent platform.
 
@@ -24,7 +24,7 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 | 0.3     | Done, archive/evidence | Restrictive desktop security baseline.                      |
 | 0.4     | Done, archive/evidence | Persistent non-secret settings.                             |
 | 0.5     | Done, archive/evidence | llmster discovery through a consumed ModelRuntime boundary. |
-| 0.6     | Next                   | Approved, owned runtime lifecycle.                          |
+| 0.6     | Done, archive/evidence | Approved, owned runtime lifecycle.                          |
 | 0.7     | Planned                | Installed local model list/load/unload.                     |
 | 0.8     | Planned                | First local streaming chat and cancellation.                |
 | 0.9     | Planned                | Provider-independent conversation persistence.              |
@@ -164,6 +164,8 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 **Exit:** verified discovery/status supports lifecycle without llmster coupling in Angular.
 
 ## 0.6 — llmster lifecycle
+
+**Status:** implementation done on the active branch. Disposable-fixture start/stop/ownership/cancellation tests, OpenSpec/contract/Rust/TypeScript/web-build/E2E/native-build checks, and real-CLI failure-path evidence (clean no-orphan behavior on a genuine llmster wake failure) pass. A real successful owned start/stop cycle and the ten-cycle P1 profile remain before archive; see `docs/verification/0.6-llmster-lifecycle.md`.
 
 **Objective:** start/stop approved runtime resources without disrupting external workloads.
 
@@ -799,4 +801,4 @@ Advanced learning/multi-agent/planning, Vertex/Wisp integration, extra runtimes/
 
 ## Next implementation handoff
 
-**Only 0.4 — Persistent application settings.** Start from the archived `0.2` application API spec and the implemented `0.3` desktop security baseline. Read AGENTS, current architecture/specs, this scope and linked v1 constraints; explore actual prerequisite state; then create one OpenSpec change for `application-settings` / `local-storage` before coding. Do not implement model runtime, providers, chat, credentials or workspace capabilities as part of `0.4`.
+**Only 0.7 — Installed model management.** 0.2 is archived; 0.3, 0.4, 0.5, and 0.6 are implemented on the active branch with their recorded evidence limits (see `docs/verification/`). Start from the accepted `0.6` llmster-lifecycle change and ADR 0010. Read AGENTS, current architecture/specs, this scope and linked v1 constraints; explore actual prerequisite state (owned/attached lifecycle, real llmster model-list/load/unload semantics); then create one OpenSpec change for `local-models` before coding. Do not implement chat, streaming, providers, or credentials as part of `0.7`.

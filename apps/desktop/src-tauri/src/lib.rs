@@ -1,8 +1,16 @@
 use lattice_core::{
-    app_info, AppError, AppInfo, AppSettings, ConfigureModelRuntimeRequest, ModelRuntimeStatus,
-    ProbeModelRuntimeRequest, ResetAppSettingsRequest, SettingsStore, UpdateAppSettingsRequest,
+    app_info, AppError, AppInfo, AppSettings, CancelModelRuntimeOperationRequest,
+    ConfigureModelRuntimeRequest, ModelRuntimeStatus, ProbeModelRuntimeRequest,
+    ResetAppSettingsRequest, SettingsStore, StartModelRuntimeRequest, StopModelRuntimeRequest,
+    UpdateAppSettingsRequest,
 };
-use std::{path::PathBuf, sync::Mutex};
+use std::{
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+};
 use tauri::Manager;
 
 const STARTUP_FAILURE_EXIT_CODE: i32 = 1;
@@ -10,6 +18,7 @@ const SETTINGS_DATABASE_FILE: &str = "lattice.sqlite3";
 
 struct DesktopState {
     settings: Mutex<SettingsStore>,
+    runtime_operation_cancelled: Arc<AtomicBool>,
 }
 
 #[tauri::command]
@@ -61,6 +70,41 @@ fn probe_model_runtime(
     with_settings_store(&state, |store| store.probe_model_runtime(request))
 }
 
+#[tauri::command]
+fn start_model_runtime(
+    state: tauri::State<'_, DesktopState>,
+    request: StartModelRuntimeRequest,
+) -> Result<ModelRuntimeStatus, AppError> {
+    state
+        .runtime_operation_cancelled
+        .store(false, Ordering::SeqCst);
+    let cancel = state.runtime_operation_cancelled.clone();
+    with_settings_store(&state, |store| store.start_model_runtime(request, &cancel))
+}
+
+#[tauri::command]
+fn stop_model_runtime(
+    state: tauri::State<'_, DesktopState>,
+    request: StopModelRuntimeRequest,
+) -> Result<ModelRuntimeStatus, AppError> {
+    state
+        .runtime_operation_cancelled
+        .store(false, Ordering::SeqCst);
+    let cancel = state.runtime_operation_cancelled.clone();
+    with_settings_store(&state, |store| store.stop_model_runtime(request, &cancel))
+}
+
+#[tauri::command]
+fn cancel_model_runtime_operation(
+    state: tauri::State<'_, DesktopState>,
+    _request: CancelModelRuntimeOperationRequest,
+) -> Result<(), AppError> {
+    state
+        .runtime_operation_cancelled
+        .store(true, Ordering::SeqCst);
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if let Err(error) = run_desktop_shell() {
@@ -69,12 +113,13 @@ pub fn run() {
 }
 
 fn run_desktop_shell() -> Result<(), tauri::Error> {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .setup(|app| {
             let settings_path = settings_database_path(app)?;
             let settings = SettingsStore::open(settings_path)?;
             app.manage(DesktopState {
                 settings: Mutex::new(settings),
+                runtime_operation_cancelled: Arc::new(AtomicBool::new(false)),
             });
             Ok(())
         })
@@ -90,9 +135,34 @@ fn run_desktop_shell() -> Result<(), tauri::Error> {
             reset_app_settings,
             get_model_runtime_status,
             configure_model_runtime,
-            probe_model_runtime
+            probe_model_runtime,
+            start_model_runtime,
+            stop_model_runtime,
+            cancel_model_runtime_operation
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())?;
+
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            stop_owned_runtime_before_exit(app_handle);
+        }
+    });
+
+    Ok(())
+}
+
+/// Best-effort stop of a runtime this session owns, attempted right before
+/// the application exits. Never delays or blocks exit: a missing state, a
+/// poisoned lock, or a stop that cannot complete within its short bounded
+/// deadline all simply mean nothing is stopped here.
+fn stop_owned_runtime_before_exit(app_handle: &tauri::AppHandle) {
+    let Some(state) = app_handle.try_state::<DesktopState>() else {
+        return;
+    };
+    let Ok(mut settings) = state.settings.lock() else {
+        return;
+    };
+    settings.stop_owned_model_runtime_for_shutdown();
 }
 
 fn settings_database_path(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -123,9 +193,10 @@ fn startup_failure_message(error: &tauri::Error) -> String {
 mod tests {
     use super::{get_app_info, startup_failure_message, STARTUP_FAILURE_EXIT_CODE};
     use lattice_core::{
-        AppRuntime, CONFIGURE_MODEL_RUNTIME_COMMAND, GET_APP_INFO_COMMAND,
-        GET_APP_SETTINGS_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND, PROBE_MODEL_RUNTIME_COMMAND,
-        RESET_APP_SETTINGS_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
+        AppRuntime, CANCEL_MODEL_RUNTIME_OPERATION_COMMAND, CONFIGURE_MODEL_RUNTIME_COMMAND,
+        GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND,
+        PROBE_MODEL_RUNTIME_COMMAND, RESET_APP_SETTINGS_COMMAND, START_MODEL_RUNTIME_COMMAND,
+        STOP_MODEL_RUNTIME_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
     };
     use serde_json::Value;
     use std::{error::Error, fs, io, path::PathBuf};
@@ -151,7 +222,10 @@ mod tests {
                 RESET_APP_SETTINGS_COMMAND,
                 GET_MODEL_RUNTIME_STATUS_COMMAND,
                 CONFIGURE_MODEL_RUNTIME_COMMAND,
-                PROBE_MODEL_RUNTIME_COMMAND
+                PROBE_MODEL_RUNTIME_COMMAND,
+                START_MODEL_RUNTIME_COMMAND,
+                STOP_MODEL_RUNTIME_COMMAND,
+                CANCEL_MODEL_RUNTIME_OPERATION_COMMAND
             ],
             [
                 "get_app_info",
@@ -160,7 +234,10 @@ mod tests {
                 "reset_app_settings",
                 "get_model_runtime_status",
                 "configure_model_runtime",
-                "probe_model_runtime"
+                "probe_model_runtime",
+                "start_model_runtime",
+                "stop_model_runtime",
+                "cancel_model_runtime_operation"
             ]
         );
     }
@@ -234,7 +311,8 @@ mod tests {
             vec![
                 "allow-get-app-info".to_string(),
                 "allow-application-settings".to_string(),
-                "allow-model-runtime-discovery".to_string()
+                "allow-model-runtime-discovery".to_string(),
+                "allow-model-runtime-lifecycle".to_string()
             ]
         );
         assert!(capability.get("remote").is_none());

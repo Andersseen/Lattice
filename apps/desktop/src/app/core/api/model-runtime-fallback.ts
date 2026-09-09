@@ -1,7 +1,9 @@
 import type {
   ConfigureModelRuntimeRequest,
   ModelRuntimeStatus,
-  ProbeModelRuntimeRequest
+  ProbeModelRuntimeRequest,
+  StartModelRuntimeRequest,
+  StopModelRuntimeRequest
 } from '@lattice/types';
 
 let webRuntimeStatus: ModelRuntimeStatus = createMissingRuntimeStatus(1);
@@ -68,6 +70,55 @@ export function probeWebModelRuntime(request: ProbeModelRuntimeRequest): ModelRu
   return webRuntimeStatus;
 }
 
+export function startWebModelRuntime(request: StartModelRuntimeRequest): ModelRuntimeStatus {
+  ensureExpectedRevision(request.expectedRevision);
+  if (webRuntimeStatus.executablePath === undefined) {
+    throw {
+      code: 'runtime.invalid',
+      message: 'Choose a runtime executable before starting it.',
+      recoverable: true
+    };
+  }
+
+  webRuntimeStatus = {
+    ...webRuntimeStatus,
+    revision: webRuntimeStatus.revision + 1,
+    availability: 'running',
+    daemon: { status: 'running', pid: 1, isDaemon: true },
+    server: { status: 'running', endpoint: 'http://127.0.0.1:0' },
+    ownership: {
+      state: 'owned',
+      daemonPid: 1,
+      executableFingerprint: `web:${webRuntimeStatus.executablePath}`,
+      ownedSinceUnixSeconds: Math.floor(Date.now() / 1000)
+    },
+    lastOperation: 'started',
+    message: 'Runtime discovery completed.'
+  };
+  return webRuntimeStatus;
+}
+
+export function stopWebModelRuntime(request: StopModelRuntimeRequest): ModelRuntimeStatus {
+  ensureExpectedRevision(request.expectedRevision);
+
+  const wasOwned = webRuntimeStatus.ownership.state === 'owned';
+  webRuntimeStatus = {
+    ...webRuntimeStatus,
+    revision: webRuntimeStatus.revision + 1,
+    availability: 'stopped',
+    daemon: { status: 'notRunning' },
+    server: { status: 'stopped' },
+    ownership: { state: 'unknown' },
+    lastOperation: wasOwned ? 'stopped' : 'refused',
+    message: 'Runtime daemon or server is not running.'
+  };
+  return webRuntimeStatus;
+}
+
+export function cancelWebModelRuntimeOperation(): void {
+  // The web fallback never runs a real long-lived operation to cancel.
+}
+
 function createMissingRuntimeStatus(revision: number): ModelRuntimeStatus {
   return {
     revision,
@@ -78,6 +129,7 @@ function createMissingRuntimeStatus(revision: number): ModelRuntimeStatus {
     server: {
       status: 'unknown'
     },
+    ownership: { state: 'unknown' },
     message: 'No runtime executable configured.'
   };
 }

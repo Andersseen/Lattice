@@ -1,3 +1,4 @@
+use super::lifecycle::{RuntimeOperationOutcome, RuntimeOwnership};
 use crate::AppError;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -6,6 +7,7 @@ use std::{
     net::{SocketAddr, TcpStream},
     path::{Path, PathBuf},
     process::{Command, ExitStatus, Stdio},
+    sync::atomic::{AtomicBool, Ordering},
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -24,7 +26,7 @@ const UNKNOWN_MESSAGE: &str = "Runtime status could not be determined.";
 const UNREACHABLE_MESSAGE: &str = "Runtime server reported a port that is not reachable.";
 const STOPPED_MESSAGE: &str = "Runtime daemon or server is not running.";
 const MAX_EXECUTABLE_PATH_LENGTH: usize = 4096;
-const COMMAND_TIMEOUT: Duration = Duration::from_secs(2);
+const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 const TCP_TIMEOUT: Duration = Duration::from_millis(500);
 const MAX_OUTPUT_BYTES: u64 = 64 * 1024;
 const MIN_SUPPORTED_CLI_VERSION: Version = Version {
@@ -159,6 +161,9 @@ pub struct ModelRuntimeStatus {
     pub approved: Option<RuntimeProbeApproval>,
     pub daemon: RuntimeDaemonObservation,
     pub server: RuntimeServerObservation,
+    pub ownership: RuntimeOwnership,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_operation: Option<RuntimeOperationOutcome>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_checked_unix_seconds: Option<u64>,
     pub message: String,
@@ -174,6 +179,8 @@ impl Default for ModelRuntimeStatus {
             approved: None,
             daemon: RuntimeDaemonObservation::default(),
             server: RuntimeServerObservation::default(),
+            ownership: RuntimeOwnership::Unknown,
+            last_operation: None,
             last_checked_unix_seconds: None,
             message: DEFAULT_RUNTIME_MESSAGE.to_string(),
         }
@@ -200,12 +207,14 @@ impl ModelRuntimeStatus {
         let Ok(current_fingerprint) = executable_fingerprint(path) else {
             self.availability = ModelRuntimeAvailability::Unknown;
             self.message = UNKNOWN_MESSAGE.to_string();
+            self.ownership = RuntimeOwnership::Unknown;
             return self;
         };
 
         let Some(current_fingerprint) = current_fingerprint else {
             self.availability = ModelRuntimeAvailability::Missing;
             self.message = EXECUTABLE_MISSING_MESSAGE.to_string();
+            self.ownership = RuntimeOwnership::Unknown;
             return self;
         };
 
@@ -213,6 +222,7 @@ impl ModelRuntimeStatus {
             if approval.executable_fingerprint != current_fingerprint {
                 self.availability = ModelRuntimeAvailability::Unknown;
                 self.message = EXECUTABLE_CHANGED_MESSAGE.to_string();
+                self.ownership = RuntimeOwnership::Unknown;
             }
         }
 
@@ -317,7 +327,10 @@ pub fn probe_model_runtime(executable_path: &Path) -> RuntimeProbeResult {
 
     let version_output = match run_probe_command(executable_path, &["--version"]) {
         Ok(output) if output.status.success() => output.combined_text(),
-        Ok(_) | Err(CommandProbeError::Spawn) | Err(CommandProbeError::Io) => {
+        Ok(_)
+        | Err(CommandProbeError::Spawn)
+        | Err(CommandProbeError::Io)
+        | Err(CommandProbeError::Cancelled) => {
             return unknown_probe_result(checked_at);
         }
         Err(CommandProbeError::Timeout) => {
@@ -565,10 +578,10 @@ struct LmsServerStatus {
 }
 
 #[derive(Debug)]
-struct CommandOutput {
-    status: ExitStatus,
-    stdout: String,
-    stderr: String,
+pub(crate) struct CommandOutput {
+    pub(crate) status: ExitStatus,
+    pub(crate) stdout: String,
+    pub(crate) stderr: String,
 }
 
 impl CommandOutput {
@@ -578,15 +591,30 @@ impl CommandOutput {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CommandProbeError {
+pub(crate) enum CommandProbeError {
     Spawn,
     Timeout,
+    Cancelled,
     Io,
 }
 
 fn run_probe_command(
     executable_path: &Path,
     args: &[&str],
+) -> Result<CommandOutput, CommandProbeError> {
+    run_bounded_command(executable_path, args, COMMAND_TIMEOUT, None)
+}
+
+/// Spawns `executable_path` with fixed argv (no shell), captures bounded
+/// output to temp files, and polls for completion up to `deadline`. If
+/// `cancel` is set at any poll tick, or the deadline elapses first, the
+/// child is killed and waited on before returning an error — the caller
+/// always gets a terminated child, never a leaked one.
+pub(crate) fn run_bounded_command(
+    executable_path: &Path,
+    args: &[&str],
+    deadline: Duration,
+    cancel: Option<&AtomicBool>,
 ) -> Result<CommandOutput, CommandProbeError> {
     let stdout_path = create_output_path("lattice-runtime-probe-stdout")?;
     let stderr_path = create_output_path("lattice-runtime-probe-stderr")?;
@@ -607,7 +635,15 @@ fn run_probe_command(
             break status;
         }
 
-        if started.elapsed() >= COMMAND_TIMEOUT {
+        if cancel.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = fs::remove_file(&stdout_path);
+            let _ = fs::remove_file(&stderr_path);
+            return Err(CommandProbeError::Cancelled);
+        }
+
+        if started.elapsed() >= deadline {
             let _ = child.kill();
             let _ = child.wait();
             let _ = fs::remove_file(&stdout_path);
@@ -712,7 +748,7 @@ fn parse_semver_from(text: &str) -> Option<(String, Version)> {
     ))
 }
 
-fn unix_timestamp_now() -> u64 {
+pub(crate) fn unix_timestamp_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs())
@@ -866,7 +902,7 @@ esac
     fn timed_out_probe_reports_unknown() -> Result<(), Box<dyn Error>> {
         let fixture = executable_fixture(
             r#"case "$1" in
-  --version) sleep 5;;
+  --version) sleep 30;;
   *) exit 2;;
 esac
 "#,

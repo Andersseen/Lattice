@@ -1,0 +1,19 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-model-runtime-lifecycle"
+description = "Enables model runtime lifecycle commands without any pre-configured scope."
+commands.allow = [
+  "start_model_runtime",
+  "stop_model_runtime",
+  "cancel_model_runtime_operation",
+]
+
+[[permission]]
+identifier = "deny-model-runtime-lifecycle"
+description = "Denies model runtime lifecycle commands without any pre-configured scope."
+commands.deny = [
+  "start_model_runtime",
+  "stop_model_runtime",
+  "cancel_model_runtime_operation",
+]

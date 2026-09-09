@@ -4,10 +4,13 @@ import {
   type AppError,
   type AppInfo,
   type AppSettings,
+  type CancelModelRuntimeOperationRequest,
   type ConfigureModelRuntimeRequest,
   type ModelRuntimeStatus,
   type ProbeModelRuntimeRequest,
   type ResetAppSettingsRequest,
+  type StartModelRuntimeRequest,
+  type StopModelRuntimeRequest,
   type UpdateAppSettingsRequest
 } from '@lattice/types';
 
@@ -22,9 +25,12 @@ import {
 import { getWebSettings, resetWebSettings, updateWebSettings } from './app-settings-fallback';
 import { createWebFallbackInfo } from './app-info-fallback';
 import {
+  cancelWebModelRuntimeOperation,
   configureWebModelRuntime,
   getWebModelRuntimeStatus,
-  probeWebModelRuntime
+  probeWebModelRuntime,
+  startWebModelRuntime,
+  stopWebModelRuntime
 } from './model-runtime-fallback';
 import { isTauriRuntime } from './tauri-runtime';
 
@@ -132,6 +138,56 @@ export class AppApiService {
           request
         })
       );
+    } catch (error: unknown) {
+      throw normalizeModelRuntimeError(error);
+    }
+  }
+
+  async startModelRuntime(request: StartModelRuntimeRequest): Promise<ModelRuntimeStatus> {
+    if (!isTauriRuntime()) {
+      return startWebModelRuntime(request);
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeModelRuntimeStatus(
+        await invoke<unknown>(APP_COMMANDS.startModelRuntime, {
+          request
+        })
+      );
+    } catch (error: unknown) {
+      throw normalizeModelRuntimeError(error);
+    }
+  }
+
+  async stopModelRuntime(request: StopModelRuntimeRequest): Promise<ModelRuntimeStatus> {
+    if (!isTauriRuntime()) {
+      return stopWebModelRuntime(request);
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeModelRuntimeStatus(
+        await invoke<unknown>(APP_COMMANDS.stopModelRuntime, {
+          request
+        })
+      );
+    } catch (error: unknown) {
+      throw normalizeModelRuntimeError(error);
+    }
+  }
+
+  async cancelModelRuntimeOperation(request: CancelModelRuntimeOperationRequest): Promise<void> {
+    if (!isTauriRuntime()) {
+      cancelWebModelRuntimeOperation();
+      return;
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke<void>(APP_COMMANDS.cancelModelRuntimeOperation, {
+        request
+      });
     } catch (error: unknown) {
       throw normalizeModelRuntimeError(error);
     }

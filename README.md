@@ -171,7 +171,7 @@ openspec/                OpenSpec config and future spec source of truth
 
 See [docs/roadmap.md](docs/roadmap.md). The roadmap has no dates and does not make Wisp or Vertex part of v1.
 
-The [repository assessment](docs/v1/repository-assessment.md) distinguishes implemented behavior from planned releases; the [Definition of 1.0](docs/v1/definition-of-v1.md) sets the required workflow and platform support. The next implementation scope is **0.2 — Application Runtime Foundation**.
+The [repository assessment](docs/v1/repository-assessment.md) distinguishes implemented behavior from planned releases; the [Definition of 1.0](docs/v1/definition-of-v1.md) sets the required workflow and platform support. The next implementation scope is **0.7 — Installed model management**.
 
 ## Contributing
 
