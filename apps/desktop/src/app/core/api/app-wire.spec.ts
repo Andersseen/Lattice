@@ -94,6 +94,13 @@ describe('app wire boundary', () => {
           port: 1234,
           endpoint: 'http://127.0.0.1:1234'
         },
+        ownership: {
+          state: 'owned',
+          daemonPid: 12345,
+          executableFingerprint: '/usr/local/bin/lms:42:1',
+          ownedSinceUnixSeconds: 100
+        },
+        lastOperation: 'started',
         lastCheckedUnixSeconds: 123,
         message: 'Runtime discovery completed.'
       })
@@ -118,6 +125,13 @@ describe('app wire boundary', () => {
         port: 1234,
         endpoint: 'http://127.0.0.1:1234'
       },
+      ownership: {
+        state: 'owned',
+        daemonPid: 12345,
+        executableFingerprint: '/usr/local/bin/lms:42:1',
+        ownedSinceUnixSeconds: 100
+      },
+      lastOperation: 'started',
       lastCheckedUnixSeconds: 123,
       message: 'Runtime discovery completed.'
     });

@@ -26,6 +26,11 @@ export class ModelsPage {
   protected readonly isSaving = this.runtimeStore.isSaving;
   protected readonly isProbing = this.runtimeStore.isProbing;
   protected readonly canProbe = this.runtimeStore.canProbe;
+  protected readonly isStarting = this.runtimeStore.isStarting;
+  protected readonly isStopping = this.runtimeStore.isStopping;
+  protected readonly canStart = this.runtimeStore.canStart;
+  protected readonly canStop = this.runtimeStore.canStop;
+  protected readonly isOperationPending = this.runtimeStore.isOperationPending;
   protected readonly executablePath = signal('');
   protected readonly canConfigure = computed(
     () => this.executablePath().trim().length > 0 && !this.isSaving()
@@ -55,6 +60,18 @@ export class ModelsPage {
 
   protected probe(): void {
     void this.runtimeStore.probe();
+  }
+
+  protected start(): void {
+    void this.runtimeStore.start();
+  }
+
+  protected stop(): void {
+    void this.runtimeStore.stop();
+  }
+
+  protected cancelOperation(): void {
+    void this.runtimeStore.cancelOperation();
   }
 
   protected refresh(): void {

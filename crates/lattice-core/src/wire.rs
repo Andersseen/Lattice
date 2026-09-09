@@ -1,6 +1,8 @@
 use crate::app_info::GET_APP_INFO_COMMAND;
 use crate::model_runtime::{
-    CONFIGURE_MODEL_RUNTIME_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND, PROBE_MODEL_RUNTIME_COMMAND,
+    CANCEL_MODEL_RUNTIME_OPERATION_COMMAND, CONFIGURE_MODEL_RUNTIME_COMMAND,
+    GET_MODEL_RUNTIME_STATUS_COMMAND, PROBE_MODEL_RUNTIME_COMMAND, START_MODEL_RUNTIME_COMMAND,
+    STOP_MODEL_RUNTIME_COMMAND,
 };
 use crate::settings::{
     GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
@@ -17,7 +19,10 @@ export const APP_COMMANDS = {{
   resetAppSettings: '{reset_app_settings_command}',
   getModelRuntimeStatus: '{get_model_runtime_status_command}',
   configureModelRuntime: '{configure_model_runtime_command}',
-  probeModelRuntime: '{probe_model_runtime_command}'
+  probeModelRuntime: '{probe_model_runtime_command}',
+  startModelRuntime: '{start_model_runtime_command}',
+  stopModelRuntime: '{stop_model_runtime_command}',
+  cancelModelRuntimeOperation: '{cancel_model_runtime_operation_command}'
 }} as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -34,6 +39,16 @@ export type ModelRuntimeAvailability =
 export type RuntimeDaemonStatus = 'running' | 'notRunning' | 'unknown';
 
 export type RuntimeServerStatus = 'running' | 'stopped' | 'unreachable' | 'unknown';
+
+export type RuntimeOperationOutcome =
+  | 'started'
+  | 'alreadyRunning'
+  | 'stopped'
+  | 'alreadyStopped'
+  | 'refused'
+  | 'cancelled'
+  | 'timedOut'
+  | 'failed';
 
 export interface NativeAppInfo {{
   readonly name: string;
@@ -86,6 +101,24 @@ export interface RuntimeServerObservation {{
   readonly endpoint?: string;
 }}
 
+export interface RuntimeOwnershipOwned {{
+  readonly state: 'owned';
+  readonly daemonPid: number;
+  readonly executableFingerprint: string;
+  readonly ownedSinceUnixSeconds: number;
+}}
+
+export interface RuntimeOwnershipAttached {{
+  readonly state: 'attached';
+}}
+
+export interface RuntimeOwnershipUnknown {{
+  readonly state: 'unknown';
+}}
+
+export type RuntimeOwnership =
+  RuntimeOwnershipOwned | RuntimeOwnershipAttached | RuntimeOwnershipUnknown;
+
 export interface ModelRuntimeStatus {{
   readonly revision: number;
   readonly executablePath?: string;
@@ -94,6 +127,8 @@ export interface ModelRuntimeStatus {{
   readonly approved?: RuntimeProbeApproval;
   readonly daemon: RuntimeDaemonObservation;
   readonly server: RuntimeServerObservation;
+  readonly ownership: RuntimeOwnership;
+  readonly lastOperation?: RuntimeOperationOutcome;
   readonly lastCheckedUnixSeconds?: number;
   readonly message: string;
 }}
@@ -106,6 +141,16 @@ export interface ConfigureModelRuntimeRequest {{
 export interface ProbeModelRuntimeRequest {{
   readonly expectedRevision: number;
 }}
+
+export interface StartModelRuntimeRequest {{
+  readonly expectedRevision: number;
+}}
+
+export interface StopModelRuntimeRequest {{
+  readonly expectedRevision: number;
+}}
+
+export type CancelModelRuntimeOperationRequest = Record<string, never>;
 "#,
         get_app_info_command = GET_APP_INFO_COMMAND,
         get_app_settings_command = GET_APP_SETTINGS_COMMAND,
@@ -113,7 +158,10 @@ export interface ProbeModelRuntimeRequest {{
         reset_app_settings_command = RESET_APP_SETTINGS_COMMAND,
         get_model_runtime_status_command = GET_MODEL_RUNTIME_STATUS_COMMAND,
         configure_model_runtime_command = CONFIGURE_MODEL_RUNTIME_COMMAND,
-        probe_model_runtime_command = PROBE_MODEL_RUNTIME_COMMAND
+        probe_model_runtime_command = PROBE_MODEL_RUNTIME_COMMAND,
+        start_model_runtime_command = START_MODEL_RUNTIME_COMMAND,
+        stop_model_runtime_command = STOP_MODEL_RUNTIME_COMMAND,
+        cancel_model_runtime_operation_command = CANCEL_MODEL_RUNTIME_OPERATION_COMMAND
     )
 }
 

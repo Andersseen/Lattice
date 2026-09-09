@@ -7,7 +7,10 @@ export const APP_COMMANDS = {
   resetAppSettings: 'reset_app_settings',
   getModelRuntimeStatus: 'get_model_runtime_status',
   configureModelRuntime: 'configure_model_runtime',
-  probeModelRuntime: 'probe_model_runtime'
+  probeModelRuntime: 'probe_model_runtime',
+  startModelRuntime: 'start_model_runtime',
+  stopModelRuntime: 'stop_model_runtime',
+  cancelModelRuntimeOperation: 'cancel_model_runtime_operation'
 } as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -24,6 +27,16 @@ export type ModelRuntimeAvailability =
 export type RuntimeDaemonStatus = 'running' | 'notRunning' | 'unknown';
 
 export type RuntimeServerStatus = 'running' | 'stopped' | 'unreachable' | 'unknown';
+
+export type RuntimeOperationOutcome =
+  | 'started'
+  | 'alreadyRunning'
+  | 'stopped'
+  | 'alreadyStopped'
+  | 'refused'
+  | 'cancelled'
+  | 'timedOut'
+  | 'failed';
 
 export interface NativeAppInfo {
   readonly name: string;
@@ -76,6 +89,24 @@ export interface RuntimeServerObservation {
   readonly endpoint?: string;
 }
 
+export interface RuntimeOwnershipOwned {
+  readonly state: 'owned';
+  readonly daemonPid: number;
+  readonly executableFingerprint: string;
+  readonly ownedSinceUnixSeconds: number;
+}
+
+export interface RuntimeOwnershipAttached {
+  readonly state: 'attached';
+}
+
+export interface RuntimeOwnershipUnknown {
+  readonly state: 'unknown';
+}
+
+export type RuntimeOwnership =
+  RuntimeOwnershipOwned | RuntimeOwnershipAttached | RuntimeOwnershipUnknown;
+
 export interface ModelRuntimeStatus {
   readonly revision: number;
   readonly executablePath?: string;
@@ -84,6 +115,8 @@ export interface ModelRuntimeStatus {
   readonly approved?: RuntimeProbeApproval;
   readonly daemon: RuntimeDaemonObservation;
   readonly server: RuntimeServerObservation;
+  readonly ownership: RuntimeOwnership;
+  readonly lastOperation?: RuntimeOperationOutcome;
   readonly lastCheckedUnixSeconds?: number;
   readonly message: string;
 }
@@ -96,3 +129,13 @@ export interface ConfigureModelRuntimeRequest {
 export interface ProbeModelRuntimeRequest {
   readonly expectedRevision: number;
 }
+
+export interface StartModelRuntimeRequest {
+  readonly expectedRevision: number;
+}
+
+export interface StopModelRuntimeRequest {
+  readonly expectedRevision: number;
+}
+
+export type CancelModelRuntimeOperationRequest = Record<string, never>;

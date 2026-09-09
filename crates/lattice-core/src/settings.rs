@@ -1,9 +1,12 @@
 use crate::{
     model_runtime::{
         availability_from_storage, daemon_status_from_storage, probe_model_runtime,
-        server_status_from_storage, validate_runtime_executable_path, ModelRuntimeStatus,
-        RuntimeDaemonObservation, RuntimeProbeApproval, RuntimeServerObservation,
-        DEFAULT_RUNTIME_MESSAGE,
+        server_status_from_storage, start_model_runtime as run_start_model_runtime,
+        stop_model_runtime as run_stop_model_runtime, validate_runtime_executable_path,
+        ModelRuntimeStatus, RuntimeDaemonObservation, RuntimeLifecycleInput, RuntimeOwnership,
+        RuntimeProbeApproval, RuntimeServerObservation, StartModelRuntimeRequest,
+        StopModelRuntimeRequest, DEFAULT_RUNTIME_MESSAGE, SHUTDOWN_STOP_DEADLINE,
+        START_MODEL_RUNTIME_DEADLINE, STOP_MODEL_RUNTIME_DEADLINE,
     },
     AppError,
 };
@@ -12,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::atomic::AtomicBool,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -19,7 +23,7 @@ pub const GET_APP_SETTINGS_COMMAND: &str = "get_app_settings";
 pub const UPDATE_APP_SETTINGS_COMMAND: &str = "update_app_settings";
 pub const RESET_APP_SETTINGS_COMMAND: &str = "reset_app_settings";
 
-const CURRENT_SCHEMA_VERSION: u32 = 2;
+const CURRENT_SCHEMA_VERSION: u32 = 3;
 const SETTINGS_ROW_ID: i64 = 1;
 const RUNTIME_ROW_ID: i64 = 1;
 const DEFAULT_IDLE_UNLOAD_MINUTES: u16 = 5;
@@ -211,6 +215,8 @@ impl SettingsStore {
             approved: probe.approved,
             daemon: probe.daemon,
             server: probe.server,
+            ownership: current.ownership,
+            last_operation: None,
             last_checked_unix_seconds: Some(probe.last_checked_unix_seconds),
             message: probe.message,
         };
@@ -222,6 +228,149 @@ impl SettingsStore {
             AppError::storage_unavailable("Lattice could not save model runtime status.")
         })?;
         Ok(next.with_current_file_state())
+    }
+
+    pub fn start_model_runtime(
+        &mut self,
+        request: StartModelRuntimeRequest,
+        cancel: &AtomicBool,
+    ) -> Result<ModelRuntimeStatus, AppError> {
+        let current = read_model_runtime_status(&self.conn)?;
+        if current.revision != request.expected_revision {
+            return Err(AppError::runtime_conflict(
+                "Runtime settings changed before this operation could run.",
+            ));
+        }
+
+        let Some(executable_path) = current.executable_path.as_deref() else {
+            return Err(AppError::invalid_runtime(
+                "Choose a runtime executable before starting it.",
+            ));
+        };
+        let executable_path = validate_runtime_executable_path(executable_path)?;
+
+        let result = run_start_model_runtime(&RuntimeLifecycleInput {
+            executable_path: &executable_path,
+            persisted_ownership: &current.ownership,
+            cancel,
+            deadline: START_MODEL_RUNTIME_DEADLINE,
+        });
+
+        let next = ModelRuntimeStatus {
+            revision: current.revision + 1,
+            executable_path: current.executable_path,
+            availability: result.probe.availability,
+            cli_version: result.probe.cli_version,
+            approved: result.probe.approved,
+            daemon: result.probe.daemon,
+            server: result.probe.server,
+            ownership: result.ownership,
+            last_operation: Some(result.outcome),
+            last_checked_unix_seconds: Some(result.probe.last_checked_unix_seconds),
+            message: result.probe.message,
+        };
+        let tx = self.conn.transaction().map_err(|_| {
+            AppError::storage_unavailable("Lattice could not update model runtime status.")
+        })?;
+        write_model_runtime_status(&tx, &next)?;
+        tx.commit().map_err(|_| {
+            AppError::storage_unavailable("Lattice could not save model runtime status.")
+        })?;
+        Ok(next.with_current_file_state())
+    }
+
+    pub fn stop_model_runtime(
+        &mut self,
+        request: StopModelRuntimeRequest,
+        cancel: &AtomicBool,
+    ) -> Result<ModelRuntimeStatus, AppError> {
+        let current = read_model_runtime_status(&self.conn)?;
+        if current.revision != request.expected_revision {
+            return Err(AppError::runtime_conflict(
+                "Runtime settings changed before this operation could run.",
+            ));
+        }
+
+        let Some(executable_path) = current.executable_path.as_deref() else {
+            return Err(AppError::invalid_runtime(
+                "Choose a runtime executable before stopping it.",
+            ));
+        };
+        let executable_path = validate_runtime_executable_path(executable_path)?;
+
+        let result = run_stop_model_runtime(&RuntimeLifecycleInput {
+            executable_path: &executable_path,
+            persisted_ownership: &current.ownership,
+            cancel,
+            deadline: STOP_MODEL_RUNTIME_DEADLINE,
+        });
+
+        let next = ModelRuntimeStatus {
+            revision: current.revision + 1,
+            executable_path: current.executable_path,
+            availability: result.probe.availability,
+            cli_version: result.probe.cli_version,
+            approved: result.probe.approved,
+            daemon: result.probe.daemon,
+            server: result.probe.server,
+            ownership: result.ownership,
+            last_operation: Some(result.outcome),
+            last_checked_unix_seconds: Some(result.probe.last_checked_unix_seconds),
+            message: result.probe.message,
+        };
+        let tx = self.conn.transaction().map_err(|_| {
+            AppError::storage_unavailable("Lattice could not update model runtime status.")
+        })?;
+        write_model_runtime_status(&tx, &next)?;
+        tx.commit().map_err(|_| {
+            AppError::storage_unavailable("Lattice could not save model runtime status.")
+        })?;
+        Ok(next.with_current_file_state())
+    }
+
+    /// Best-effort stop of a currently-owned runtime, attempted from the
+    /// application-exit hook. Never returns an error: an attached/unknown
+    /// resource, missing executable, or storage failure all simply mean
+    /// nothing is stopped, since shutdown must not be blocked by this.
+    pub fn stop_owned_model_runtime_for_shutdown(&mut self) {
+        let Ok(current) = read_model_runtime_status(&self.conn) else {
+            return;
+        };
+        if !matches!(current.ownership, RuntimeOwnership::Owned { .. }) {
+            return;
+        }
+        let Some(executable_path) = current.executable_path.as_deref() else {
+            return;
+        };
+        let Ok(executable_path) = validate_runtime_executable_path(executable_path) else {
+            return;
+        };
+
+        let cancel = AtomicBool::new(false);
+        let result = run_stop_model_runtime(&RuntimeLifecycleInput {
+            executable_path: &executable_path,
+            persisted_ownership: &current.ownership,
+            cancel: &cancel,
+            deadline: SHUTDOWN_STOP_DEADLINE,
+        });
+
+        let next = ModelRuntimeStatus {
+            revision: current.revision + 1,
+            executable_path: current.executable_path,
+            availability: result.probe.availability,
+            cli_version: result.probe.cli_version,
+            approved: result.probe.approved,
+            daemon: result.probe.daemon,
+            server: result.probe.server,
+            ownership: result.ownership,
+            last_operation: Some(result.outcome),
+            last_checked_unix_seconds: Some(result.probe.last_checked_unix_seconds),
+            message: result.probe.message,
+        };
+        if let Ok(tx) = self.conn.transaction() {
+            let _ = write_model_runtime_status(&tx, &next);
+            let _ = tx.commit();
+        }
     }
 
     #[cfg(test)]
@@ -264,8 +413,15 @@ fn migrate(conn: &mut Connection, db_path: Option<&Path>) -> Result<(), AppError
         0 => {
             create_v1_schema(&tx)?;
             create_v2_schema(&tx)?;
+            create_v3_schema(&tx)?;
+            write_model_runtime_status(&tx, &ModelRuntimeStatus::default())?;
         }
-        1 => create_v2_schema(&tx)?,
+        1 => {
+            create_v2_schema(&tx)?;
+            create_v3_schema(&tx)?;
+            write_model_runtime_status(&tx, &ModelRuntimeStatus::default())?;
+        }
+        2 => create_v3_schema(&tx)?,
         _ => {
             return Err(AppError::unsupported_schema(
                 "Local settings schema is not supported by this Lattice version.",
@@ -325,7 +481,17 @@ fn create_v2_schema(tx: &Transaction<'_>) -> Result<(), AppError> {
     )
     .map_err(|_| AppError::migration_failed("Lattice could not migrate local settings."))?;
 
-    write_model_runtime_status(tx, &ModelRuntimeStatus::default())?;
+    Ok(())
+}
+
+fn create_v3_schema(tx: &Transaction<'_>) -> Result<(), AppError> {
+    tx.execute_batch(
+        "ALTER TABLE model_runtime_discovery ADD COLUMN ownership_state TEXT NOT NULL
+            DEFAULT 'unknown' CHECK (ownership_state IN ('owned', 'attached', 'unknown'));
+         ALTER TABLE model_runtime_discovery ADD COLUMN owned_daemon_pid INTEGER;
+         ALTER TABLE model_runtime_discovery ADD COLUMN owned_since_unix_seconds INTEGER;",
+    )
+    .map_err(|_| AppError::migration_failed("Lattice could not migrate local settings."))?;
 
     Ok(())
 }
@@ -443,7 +609,8 @@ fn read_model_runtime_status(conn: &Connection) -> Result<ModelRuntimeStatus, Ap
                     approved_executable_fingerprint, approved_cli_version,
                     approved_checked_at_unix_seconds, daemon_status, daemon_pid,
                     daemon_is_daemon, daemon_version, server_status, server_port,
-                    server_endpoint, last_checked_unix_seconds, message
+                    server_endpoint, ownership_state, owned_daemon_pid,
+                    owned_since_unix_seconds, last_checked_unix_seconds, message
              FROM model_runtime_discovery
              WHERE id = ?1",
             params![RUNTIME_ROW_ID],
@@ -463,8 +630,11 @@ fn read_model_runtime_status(conn: &Connection) -> Result<ModelRuntimeStatus, Ap
                     server_status: row.get(11)?,
                     server_port: row.get(12)?,
                     server_endpoint: row.get(13)?,
-                    last_checked_unix_seconds: row.get(14)?,
-                    message: row.get(15)?,
+                    ownership_state: row.get(14)?,
+                    owned_daemon_pid: row.get(15)?,
+                    owned_since_unix_seconds: row.get(16)?,
+                    last_checked_unix_seconds: row.get(17)?,
+                    message: row.get(18)?,
                 })
             },
         )
@@ -504,6 +674,14 @@ fn write_model_runtime_status(
         .map_err(|_| {
             AppError::storage_unavailable("Lattice could not save model runtime status.")
         })?;
+    let owned_since = status
+        .ownership
+        .owned_since_unix_seconds()
+        .map(i64::try_from)
+        .transpose()
+        .map_err(|_| {
+            AppError::storage_unavailable("Lattice could not save model runtime status.")
+        })?;
 
     tx.execute(
         "INSERT INTO model_runtime_discovery (
@@ -511,9 +689,10 @@ fn write_model_runtime_status(
             approved_executable_fingerprint, approved_cli_version,
             approved_checked_at_unix_seconds, daemon_status, daemon_pid,
             daemon_is_daemon, daemon_version, server_status, server_port,
-            server_endpoint, last_checked_unix_seconds, message
+            server_endpoint, ownership_state, owned_daemon_pid, owned_since_unix_seconds,
+            last_checked_unix_seconds, message
          )
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)
          ON CONFLICT(id) DO UPDATE SET
             revision = excluded.revision,
             executable_path = excluded.executable_path,
@@ -529,6 +708,9 @@ fn write_model_runtime_status(
             server_status = excluded.server_status,
             server_port = excluded.server_port,
             server_endpoint = excluded.server_endpoint,
+            ownership_state = excluded.ownership_state,
+            owned_daemon_pid = excluded.owned_daemon_pid,
+            owned_since_unix_seconds = excluded.owned_since_unix_seconds,
             last_checked_unix_seconds = excluded.last_checked_unix_seconds,
             message = excluded.message",
         params![
@@ -553,6 +735,9 @@ fn write_model_runtime_status(
             status.server.status.as_storage_value(),
             status.server.port.map(i64::from),
             status.server.endpoint.as_deref(),
+            status.ownership.as_storage_value(),
+            status.ownership.owned_daemon_pid().map(i64::from),
+            owned_since,
             last_checked,
             status.message.as_str()
         ],
@@ -578,12 +763,16 @@ struct RuntimeStorageRow {
     server_status: String,
     server_port: Option<i64>,
     server_endpoint: Option<String>,
+    ownership_state: String,
+    owned_daemon_pid: Option<i64>,
+    owned_since_unix_seconds: Option<i64>,
     last_checked_unix_seconds: Option<i64>,
     message: String,
 }
 
 fn model_runtime_status_from_row(row: RuntimeStorageRow) -> Result<ModelRuntimeStatus, AppError> {
     let approved = runtime_approval_from_row(&row)?;
+    let ownership = runtime_ownership_from_row(&row)?;
 
     Ok(ModelRuntimeStatus {
         revision: validate_revision(row.revision)?,
@@ -610,6 +799,8 @@ fn model_runtime_status_from_row(row: RuntimeStorageRow) -> Result<ModelRuntimeS
                 })?,
             endpoint: row.server_endpoint,
         },
+        ownership,
+        last_operation: None,
         last_checked_unix_seconds: row
             .last_checked_unix_seconds
             .map(validate_revision)
@@ -620,6 +811,35 @@ fn model_runtime_status_from_row(row: RuntimeStorageRow) -> Result<ModelRuntimeS
             row.message
         },
     })
+}
+
+fn runtime_ownership_from_row(row: &RuntimeStorageRow) -> Result<RuntimeOwnership, AppError> {
+    match row.ownership_state.as_str() {
+        "owned" => {
+            let (Some(daemon_pid), Some(executable_fingerprint), Some(owned_since)) = (
+                row.owned_daemon_pid,
+                row.approved_executable_fingerprint.clone(),
+                row.owned_since_unix_seconds,
+            ) else {
+                return Ok(RuntimeOwnership::Unknown);
+            };
+            let daemon_pid = u32::try_from(daemon_pid).map_err(|_| {
+                AppError::storage_unavailable("Lattice could not read model runtime status.")
+            })?;
+            let owned_since_unix_seconds = validate_revision(owned_since)?;
+
+            Ok(RuntimeOwnership::Owned {
+                daemon_pid,
+                executable_fingerprint,
+                owned_since_unix_seconds,
+            })
+        }
+        "attached" => Ok(RuntimeOwnership::Attached),
+        "unknown" => Ok(RuntimeOwnership::Unknown),
+        _ => Err(AppError::storage_unavailable(
+            "Lattice could not read model runtime status.",
+        )),
+    }
 }
 
 fn runtime_approval_from_row(
@@ -703,9 +923,10 @@ mod tests {
     };
     use crate::model_runtime::{
         ConfigureModelRuntimeRequest, ModelRuntimeAvailability, ProbeModelRuntimeRequest,
+        RuntimeOwnership, StartModelRuntimeRequest,
     };
     use rusqlite::Connection;
-    use std::{error::Error, fs, path::PathBuf};
+    use std::{error::Error, fs, net::TcpListener, path::PathBuf, sync::atomic::AtomicBool};
     use tempfile::{tempdir, TempDir};
 
     #[test]
@@ -873,6 +1094,120 @@ esac
         assert_eq!(probed.availability, ModelRuntimeAvailability::Stopped);
         assert_eq!(status.availability, ModelRuntimeAvailability::Unknown);
         assert!(status.message.contains("changed"));
+        Ok(())
+    }
+
+    #[test]
+    fn ownership_survives_restart_when_fingerprint_unchanged() -> Result<(), Box<dyn Error>> {
+        let listener = match TcpListener::bind("127.0.0.1:0") {
+            Ok(listener) => listener,
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => return Ok(()),
+            Err(error) => return Err(error.into()),
+        };
+        let port = listener.local_addr()?.port();
+        let directory = tempdir()?;
+        let db_path = directory.path().join("lattice.sqlite3");
+        let fixture = executable_fixture(&format!(
+            r#"state_dir="$(dirname "$0")/state"
+mkdir -p "$state_dir"
+case "$1 $2" in
+  "daemon up") touch "$state_dir/daemon"; echo '{{"status":"running","pid":555,"isDaemon":true}}';;
+  "daemon status") if [ -f "$state_dir/daemon" ]; then echo '{{"status":"running","pid":555,"isDaemon":true}}'; else echo '{{"status":"not-running"}}'; fi;;
+  "server start") touch "$state_dir/server"; echo "started";;
+  "server status") if [ -f "$state_dir/server" ]; then echo '{{"running":true,"port":{port}}}'; else echo '{{"running":false}}'; fi;;
+  *)
+    case "$1" in
+      --version) echo "lms v0.0.47";;
+      *) exit 2;;
+    esac
+    ;;
+esac
+"#
+        ))?;
+
+        let mut store = SettingsStore::open(&db_path)?;
+        let configured = store.configure_model_runtime(ConfigureModelRuntimeRequest {
+            expected_revision: 1,
+            executable_path: fixture.path.to_string_lossy().to_string(),
+        })?;
+        let cancel = AtomicBool::new(false);
+        let started = store.start_model_runtime(
+            StartModelRuntimeRequest {
+                expected_revision: configured.revision,
+            },
+            &cancel,
+        )?;
+        assert!(matches!(
+            started.ownership,
+            RuntimeOwnership::Owned {
+                daemon_pid: 555,
+                ..
+            }
+        ));
+        drop(store);
+
+        let reopened = SettingsStore::open(&db_path)?;
+        let status = reopened.read_model_runtime_status()?;
+
+        assert!(matches!(
+            status.ownership,
+            RuntimeOwnership::Owned {
+                daemon_pid: 555,
+                ..
+            }
+        ));
+        drop(listener);
+        Ok(())
+    }
+
+    #[test]
+    fn ownership_downgrades_to_unknown_when_executable_changes_after_owning(
+    ) -> Result<(), Box<dyn Error>> {
+        let directory = tempdir()?;
+        let db_path = directory.path().join("lattice.sqlite3");
+        let fixture = executable_fixture(
+            r#"state_dir="$(dirname "$0")/state"
+mkdir -p "$state_dir"
+case "$1 $2" in
+  "daemon up") touch "$state_dir/daemon"; echo '{"status":"running","pid":777,"isDaemon":true}';;
+  "daemon status") if [ -f "$state_dir/daemon" ]; then echo '{"status":"running","pid":777,"isDaemon":true}'; else echo '{"status":"not-running"}'; fi;;
+  "server status") echo '{"running":false}';;
+  *)
+    case "$1" in
+      --version) echo "lms v0.0.47";;
+      *) exit 2;;
+    esac
+    ;;
+esac
+"#,
+        )?;
+
+        let mut store = SettingsStore::open(&db_path)?;
+        let configured = store.configure_model_runtime(ConfigureModelRuntimeRequest {
+            expected_revision: 1,
+            executable_path: fixture.path.to_string_lossy().to_string(),
+        })?;
+        let cancel = AtomicBool::new(false);
+        let started = store.start_model_runtime(
+            StartModelRuntimeRequest {
+                expected_revision: configured.revision,
+            },
+            &cancel,
+        )?;
+        assert!(matches!(
+            started.ownership,
+            RuntimeOwnership::Owned {
+                daemon_pid: 777,
+                ..
+            }
+        ));
+        drop(store);
+
+        fs::write(&fixture.path, b"#!/bin/sh\nexit 2\n")?;
+        let reopened = SettingsStore::open(&db_path)?;
+        let status = reopened.read_model_runtime_status()?;
+
+        assert_eq!(status.ownership, RuntimeOwnership::Unknown);
         Ok(())
     }
 

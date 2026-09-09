@@ -2,7 +2,9 @@ import {
   configureWebModelRuntime,
   getWebModelRuntimeStatus,
   probeWebModelRuntime,
-  resetWebModelRuntimeStatusForTest
+  resetWebModelRuntimeStatusForTest,
+  startWebModelRuntime,
+  stopWebModelRuntime
 } from './model-runtime-fallback';
 
 describe('model runtime browser fallback', () => {
@@ -71,5 +73,43 @@ describe('model runtime browser fallback', () => {
         code: 'runtime.conflict'
       })
     );
+  });
+
+  it('starting a configured runtime reports owned ownership', () => {
+    const configured = configureWebModelRuntime({
+      expectedRevision: getWebModelRuntimeStatus().revision,
+      executablePath: '/usr/local/bin/lms'
+    });
+
+    const started = startWebModelRuntime({ expectedRevision: configured.revision });
+
+    expect(started.availability).toBe('running');
+    expect(started.ownership).toEqual(expect.objectContaining({ state: 'owned', daemonPid: 1 }));
+    expect(started.lastOperation).toBe('started');
+  });
+
+  it('stopping an owned runtime returns ownership to unknown', () => {
+    const configured = configureWebModelRuntime({
+      expectedRevision: getWebModelRuntimeStatus().revision,
+      executablePath: '/usr/local/bin/lms'
+    });
+    const started = startWebModelRuntime({ expectedRevision: configured.revision });
+
+    const stopped = stopWebModelRuntime({ expectedRevision: started.revision });
+
+    expect(stopped.availability).toBe('stopped');
+    expect(stopped.ownership).toEqual({ state: 'unknown' });
+    expect(stopped.lastOperation).toBe('stopped');
+  });
+
+  it('stopping a runtime that is not owned reports refused', () => {
+    const configured = configureWebModelRuntime({
+      expectedRevision: getWebModelRuntimeStatus().revision,
+      executablePath: '/usr/local/bin/lms'
+    });
+
+    const stopped = stopWebModelRuntime({ expectedRevision: configured.revision });
+
+    expect(stopped.lastOperation).toBe('refused');
   });
 });

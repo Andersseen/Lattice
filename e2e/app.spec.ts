@@ -45,3 +45,32 @@ test('model runtime discovery can be configured in browser smoke mode', async ({
   await expect(page.getByText('stopped').first()).toBeVisible();
   await expect(page.getByText('0.0.47')).toBeVisible();
 });
+
+test('model runtime lifecycle can be started and stopped in browser smoke mode', async ({
+  page
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Models', exact: true }).click();
+
+  await expect(page).toHaveURL(/\/models$/);
+  await page.getByRole('textbox', { name: 'Path' }).fill('/usr/local/bin/lms');
+  await page.getByRole('button', { name: 'Configure' }).click();
+  await page.getByRole('button', { name: 'Probe' }).click();
+  await expect(page.getByText('stopped').first()).toBeVisible();
+
+  const startButton = page.getByRole('button', { name: 'Start' });
+  await expect(startButton).toBeEnabled();
+  await startButton.click();
+
+  await expect(page.getByText('running').first()).toBeVisible();
+  await expect(page.getByText('owned')).toBeVisible();
+  await expect(page.getByText('Last operation: started')).toBeVisible();
+
+  const stopButton = page.getByRole('button', { name: 'Stop' });
+  await expect(stopButton).toBeEnabled();
+  await stopButton.click();
+
+  await expect(page.getByText('stopped').first()).toBeVisible();
+  await expect(page.getByText('unknown').first()).toBeVisible();
+  await expect(page.getByText('Last operation: stopped')).toBeVisible();
+});

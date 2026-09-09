@@ -25,6 +25,45 @@
       <span>Server</span>
       <strong>{{ runtimeStatus.server.status }}</strong>
     </article>
+    <article>
+      <span>Ownership</span>
+      <strong>{{ runtimeStatus.ownership.state }}</strong>
+    </article>
+  </section>
+
+  <section class="runtime-card" aria-labelledby="runtime-lifecycle-title">
+    <div>
+      <h2 id="runtime-lifecycle-title">Lifecycle</h2>
+      @if (runtimeStatus.lastOperation; as lastOperation) {
+      <p>Last operation: {{ lastOperation }}</p>
+      }
+    </div>
+
+    <div class="actions">
+      <volt-button
+        type="button"
+        variant="outline"
+        size="md"
+        [disabled]="!canStart()"
+        (click)="start()"
+      >
+        {{ isStarting() ? 'Starting' : 'Start' }}
+      </volt-button>
+      <volt-button
+        type="button"
+        variant="outline"
+        size="md"
+        [disabled]="!canStop()"
+        (click)="stop()"
+      >
+        {{ isStopping() ? 'Stopping' : 'Stop' }}
+      </volt-button>
+      @if (isOperationPending()) {
+      <volt-button type="button" variant="outline" size="sm" (click)="cancelOperation()">
+        Cancel
+      </volt-button>
+      }
+    </div>
   </section>
 
   <section class="runtime-card" aria-labelledby="runtime-path-title">
