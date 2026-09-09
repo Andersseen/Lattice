@@ -801,4 +801,4 @@ Advanced learning/multi-agent/planning, Vertex/Wisp integration, extra runtimes/
 
 ## Next implementation handoff
 
-**Only 0.4 — Persistent application settings.** Start from the archived `0.2` application API spec and the implemented `0.3` desktop security baseline. Read AGENTS, current architecture/specs, this scope and linked v1 constraints; explore actual prerequisite state; then create one OpenSpec change for `application-settings` / `local-storage` before coding. Do not implement model runtime, providers, chat, credentials or workspace capabilities as part of `0.4`.
+**Only 0.7 — Installed model management.** 0.2 is archived; 0.3, 0.4, 0.5, and 0.6 are implemented on the active branch with their recorded evidence limits (see `docs/verification/`). Start from the accepted `0.6` llmster-lifecycle change and ADR 0010. Read AGENTS, current architecture/specs, this scope and linked v1 constraints; explore actual prerequisite state (owned/attached lifecycle, real llmster model-list/load/unload semantics); then create one OpenSpec change for `local-models` before coding. Do not implement chat, streaming, providers, or credentials as part of `0.7`.
