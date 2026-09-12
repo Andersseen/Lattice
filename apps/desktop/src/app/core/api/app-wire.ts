@@ -2,13 +2,16 @@ import type {
   AppError,
   AppInfo,
   AppSettings,
+  ModelDescriptor,
   ModelRuntimeStatus,
+  ModelSlotStatus,
   NativeAppInfo
 } from '@lattice/types';
 
 const SAFE_APP_INFO_ERROR = 'Lattice could not read application information.';
 const SAFE_APP_SETTINGS_ERROR = 'Lattice could not read application settings.';
 const SAFE_MODEL_RUNTIME_ERROR = 'Lattice could not read model runtime status.';
+const SAFE_MODEL_SLOT_ERROR = 'Lattice could not read model slot status.';
 const MAX_SAFE_MESSAGE_LENGTH = 240;
 
 export function decodeAppInfo(value: unknown): AppInfo {
@@ -33,6 +36,14 @@ export function decodeModelRuntimeStatus(value: unknown): ModelRuntimeStatus {
   }
 
   throw createBridgeError(SAFE_MODEL_RUNTIME_ERROR);
+}
+
+export function decodeModelSlotStatus(value: unknown): ModelSlotStatus {
+  if (isModelSlotStatus(value)) {
+    return value;
+  }
+
+  throw createBridgeError(SAFE_MODEL_SLOT_ERROR);
 }
 
 export function normalizeAppError(error: unknown, fallbackMessage = SAFE_APP_INFO_ERROR): AppError {
@@ -62,6 +73,10 @@ export function normalizeSettingsError(error: unknown): AppError {
 
 export function normalizeModelRuntimeError(error: unknown): AppError {
   return normalizeAppError(error, SAFE_MODEL_RUNTIME_ERROR);
+}
+
+export function normalizeModelSlotError(error: unknown): AppError {
+  return normalizeAppError(error, SAFE_MODEL_SLOT_ERROR);
 }
 
 function createBridgeError(message: string): AppError {
@@ -223,6 +238,91 @@ function isRuntimeServerObservation(value: unknown): boolean {
       value['status'] === 'unknown') &&
     optionalPositiveInteger(value['port']) &&
     optionalString(value['endpoint'])
+  );
+}
+
+function isModelSlotStatus(value: unknown): value is ModelSlotStatus {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isPositiveInteger(value['revision']) &&
+    Array.isArray(value['installed']) &&
+    value['installed'].every(isModelDescriptor) &&
+    optionalLoadedModelObservation(value['loaded']) &&
+    isModelLoadOwnership(value['ownership']) &&
+    optionalModelOperationOutcome(value['lastOperation']) &&
+    optionalPositiveInteger(value['lastCheckedUnixSeconds']) &&
+    typeof value['message'] === 'string'
+  );
+}
+
+function isModelDescriptor(value: unknown): value is ModelDescriptor {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value['modelKey'] === 'string' &&
+    typeof value['displayName'] === 'string' &&
+    optionalString(value['architecture']) &&
+    typeof value['isLlm'] === 'boolean' &&
+    optionalPositiveInteger(value['sizeBytes'])
+  );
+}
+
+function optionalLoadedModelObservation(value: unknown): boolean {
+  if (value === undefined) {
+    return true;
+  }
+
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value['identifier'] === 'string' &&
+    typeof value['modelKey'] === 'string' &&
+    optionalString(value['architecture']) &&
+    optionalPositiveInteger(value['sizeBytes'])
+  );
+}
+
+function isModelLoadOwnership(value: unknown): value is ModelSlotStatus['ownership'] {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (value['state'] === 'unknown') {
+    return true;
+  }
+
+  if (typeof value['identifier'] !== 'string' || typeof value['modelKey'] !== 'string') {
+    return false;
+  }
+
+  if (value['state'] === 'attached') {
+    return true;
+  }
+
+  return value['state'] === 'owned' && isPositiveInteger(value['loadedSinceUnixSeconds']);
+}
+
+function optionalModelOperationOutcome(value: unknown): boolean {
+  if (value === undefined) {
+    return true;
+  }
+
+  return (
+    value === 'loaded' ||
+    value === 'alreadyLoaded' ||
+    value === 'unloaded' ||
+    value === 'alreadyUnloaded' ||
+    value === 'refused' ||
+    value === 'cancelled' ||
+    value === 'timedOut' ||
+    value === 'failed'
   );
 }
 

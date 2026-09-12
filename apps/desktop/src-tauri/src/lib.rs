@@ -1,8 +1,9 @@
 use lattice_core::{
-    app_info, AppError, AppInfo, AppSettings, CancelModelRuntimeOperationRequest,
-    ConfigureModelRuntimeRequest, ModelRuntimeStatus, ProbeModelRuntimeRequest,
+    app_info, AppError, AppInfo, AppSettings, CancelModelOperationRequest,
+    CancelModelRuntimeOperationRequest, ConfigureModelRuntimeRequest, GetModelSlotStatusRequest,
+    LoadModelRequest, ModelRuntimeStatus, ModelSlotStatus, ProbeModelRuntimeRequest,
     ResetAppSettingsRequest, SettingsStore, StartModelRuntimeRequest, StopModelRuntimeRequest,
-    UpdateAppSettingsRequest,
+    UnloadModelRequest, UpdateAppSettingsRequest,
 };
 use std::{
     path::PathBuf,
@@ -19,6 +20,7 @@ const SETTINGS_DATABASE_FILE: &str = "lattice.sqlite3";
 struct DesktopState {
     settings: Mutex<SettingsStore>,
     runtime_operation_cancelled: Arc<AtomicBool>,
+    model_operation_cancelled: Arc<AtomicBool>,
 }
 
 #[tauri::command]
@@ -105,6 +107,50 @@ fn cancel_model_runtime_operation(
     Ok(())
 }
 
+#[tauri::command]
+fn get_model_slot_status(
+    state: tauri::State<'_, DesktopState>,
+) -> Result<ModelSlotStatus, AppError> {
+    with_settings_store(&state, |store| {
+        store.get_model_slot_status(GetModelSlotStatusRequest {})
+    })
+}
+
+#[tauri::command]
+fn load_model(
+    state: tauri::State<'_, DesktopState>,
+    request: LoadModelRequest,
+) -> Result<ModelSlotStatus, AppError> {
+    state
+        .model_operation_cancelled
+        .store(false, Ordering::SeqCst);
+    let cancel = state.model_operation_cancelled.clone();
+    with_settings_store(&state, |store| store.load_model(request, &cancel))
+}
+
+#[tauri::command]
+fn unload_model(
+    state: tauri::State<'_, DesktopState>,
+    request: UnloadModelRequest,
+) -> Result<ModelSlotStatus, AppError> {
+    state
+        .model_operation_cancelled
+        .store(false, Ordering::SeqCst);
+    let cancel = state.model_operation_cancelled.clone();
+    with_settings_store(&state, |store| store.unload_model(request, &cancel))
+}
+
+#[tauri::command]
+fn cancel_model_operation(
+    state: tauri::State<'_, DesktopState>,
+    _request: CancelModelOperationRequest,
+) -> Result<(), AppError> {
+    state
+        .model_operation_cancelled
+        .store(true, Ordering::SeqCst);
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if let Err(error) = run_desktop_shell() {
@@ -120,6 +166,7 @@ fn run_desktop_shell() -> Result<(), tauri::Error> {
             app.manage(DesktopState {
                 settings: Mutex::new(settings),
                 runtime_operation_cancelled: Arc::new(AtomicBool::new(false)),
+                model_operation_cancelled: Arc::new(AtomicBool::new(false)),
             });
             Ok(())
         })
@@ -138,7 +185,11 @@ fn run_desktop_shell() -> Result<(), tauri::Error> {
             probe_model_runtime,
             start_model_runtime,
             stop_model_runtime,
-            cancel_model_runtime_operation
+            cancel_model_runtime_operation,
+            get_model_slot_status,
+            load_model,
+            unload_model,
+            cancel_model_operation
         ])
         .build(tauri::generate_context!())?;
 
@@ -193,10 +244,11 @@ fn startup_failure_message(error: &tauri::Error) -> String {
 mod tests {
     use super::{get_app_info, startup_failure_message, STARTUP_FAILURE_EXIT_CODE};
     use lattice_core::{
-        AppRuntime, CANCEL_MODEL_RUNTIME_OPERATION_COMMAND, CONFIGURE_MODEL_RUNTIME_COMMAND,
-        GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND,
+        AppRuntime, CANCEL_MODEL_OPERATION_COMMAND, CANCEL_MODEL_RUNTIME_OPERATION_COMMAND,
+        CONFIGURE_MODEL_RUNTIME_COMMAND, GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND,
+        GET_MODEL_RUNTIME_STATUS_COMMAND, GET_MODEL_SLOT_STATUS_COMMAND, LOAD_MODEL_COMMAND,
         PROBE_MODEL_RUNTIME_COMMAND, RESET_APP_SETTINGS_COMMAND, START_MODEL_RUNTIME_COMMAND,
-        STOP_MODEL_RUNTIME_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
+        STOP_MODEL_RUNTIME_COMMAND, UNLOAD_MODEL_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
     };
     use serde_json::Value;
     use std::{error::Error, fs, io, path::PathBuf};
@@ -225,7 +277,11 @@ mod tests {
                 PROBE_MODEL_RUNTIME_COMMAND,
                 START_MODEL_RUNTIME_COMMAND,
                 STOP_MODEL_RUNTIME_COMMAND,
-                CANCEL_MODEL_RUNTIME_OPERATION_COMMAND
+                CANCEL_MODEL_RUNTIME_OPERATION_COMMAND,
+                GET_MODEL_SLOT_STATUS_COMMAND,
+                LOAD_MODEL_COMMAND,
+                UNLOAD_MODEL_COMMAND,
+                CANCEL_MODEL_OPERATION_COMMAND
             ],
             [
                 "get_app_info",
@@ -237,7 +293,11 @@ mod tests {
                 "probe_model_runtime",
                 "start_model_runtime",
                 "stop_model_runtime",
-                "cancel_model_runtime_operation"
+                "cancel_model_runtime_operation",
+                "get_model_slot_status",
+                "load_model",
+                "unload_model",
+                "cancel_model_operation"
             ]
         );
     }
@@ -312,7 +372,8 @@ mod tests {
                 "allow-get-app-info".to_string(),
                 "allow-application-settings".to_string(),
                 "allow-model-runtime-discovery".to_string(),
-                "allow-model-runtime-lifecycle".to_string()
+                "allow-model-runtime-lifecycle".to_string(),
+                "allow-local-models".to_string()
             ]
         );
         assert!(capability.get("remote").is_none());

@@ -1,12 +1,16 @@
 use crate::{
     model_runtime::{
-        availability_from_storage, daemon_status_from_storage, probe_model_runtime,
+        availability_from_storage, daemon_status_from_storage, list_installed_models,
+        load_model as run_load_model, observe_loaded_slot, probe_model_runtime,
         server_status_from_storage, start_model_runtime as run_start_model_runtime,
-        stop_model_runtime as run_stop_model_runtime, validate_runtime_executable_path,
-        ModelRuntimeStatus, RuntimeDaemonObservation, RuntimeLifecycleInput, RuntimeOwnership,
-        RuntimeProbeApproval, RuntimeServerObservation, StartModelRuntimeRequest,
-        StopModelRuntimeRequest, DEFAULT_RUNTIME_MESSAGE, SHUTDOWN_STOP_DEADLINE,
-        START_MODEL_RUNTIME_DEADLINE, STOP_MODEL_RUNTIME_DEADLINE,
+        stop_model_runtime as run_stop_model_runtime, unload_model as run_unload_model,
+        validate_runtime_executable_path, GetModelSlotStatusRequest, LoadModelRequest,
+        ModelLoadOwnership, ModelOperationInput, ModelOperationOutcome, ModelOperationResult,
+        ModelRuntimeAvailability, ModelRuntimeStatus, ModelSlotStatus, RuntimeDaemonObservation,
+        RuntimeLifecycleInput, RuntimeOwnership, RuntimeProbeApproval, RuntimeServerObservation,
+        StartModelRuntimeRequest, StopModelRuntimeRequest, UnloadModelRequest,
+        DEFAULT_RUNTIME_MESSAGE, LOAD_MODEL_DEADLINE, SHUTDOWN_STOP_DEADLINE,
+        START_MODEL_RUNTIME_DEADLINE, STOP_MODEL_RUNTIME_DEADLINE, UNLOAD_MODEL_DEADLINE,
     },
     AppError,
 };
@@ -23,12 +27,15 @@ pub const GET_APP_SETTINGS_COMMAND: &str = "get_app_settings";
 pub const UPDATE_APP_SETTINGS_COMMAND: &str = "update_app_settings";
 pub const RESET_APP_SETTINGS_COMMAND: &str = "reset_app_settings";
 
-const CURRENT_SCHEMA_VERSION: u32 = 3;
+const CURRENT_SCHEMA_VERSION: u32 = 4;
 const SETTINGS_ROW_ID: i64 = 1;
 const RUNTIME_ROW_ID: i64 = 1;
+const MODEL_LOAD_ROW_ID: i64 = 1;
 const DEFAULT_IDLE_UNLOAD_MINUTES: u16 = 5;
 const MIN_IDLE_UNLOAD_MINUTES: i64 = 1;
 const MAX_IDLE_UNLOAD_MINUTES: i64 = 120;
+const MODEL_RUNTIME_NOT_RUNNING_MESSAGE: &str = "Start the runtime before managing models.";
+const MODEL_SLOT_READY_MESSAGE: &str = "Model inventory refreshed.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -328,6 +335,106 @@ impl SettingsStore {
         Ok(next.with_current_file_state())
     }
 
+    pub fn get_model_slot_status(
+        &self,
+        _request: GetModelSlotStatusRequest,
+    ) -> Result<ModelSlotStatus, AppError> {
+        let (revision, ownership) = read_model_load_state(&self.conn)?;
+        let runtime = self.read_model_runtime_status()?;
+        Ok(compose_model_slot_status(
+            revision, &ownership, &runtime, None,
+        ))
+    }
+
+    pub fn load_model(
+        &mut self,
+        request: LoadModelRequest,
+        cancel: &AtomicBool,
+    ) -> Result<ModelSlotStatus, AppError> {
+        let (current_revision, persisted_ownership) = read_model_load_state(&self.conn)?;
+        if current_revision != request.expected_revision {
+            return Err(AppError::runtime_conflict(
+                "Model settings changed before this operation could run.",
+            ));
+        }
+
+        let executable_path = self.running_runtime_executable_path()?;
+        let result = run_load_model(
+            &ModelOperationInput {
+                executable_path: &executable_path,
+                persisted_ownership: &persisted_ownership,
+                cancel,
+                deadline: LOAD_MODEL_DEADLINE,
+            },
+            &request.model_key,
+        );
+
+        self.persist_model_operation_result(current_revision + 1, &executable_path, result)
+    }
+
+    pub fn unload_model(
+        &mut self,
+        request: UnloadModelRequest,
+        cancel: &AtomicBool,
+    ) -> Result<ModelSlotStatus, AppError> {
+        let (current_revision, persisted_ownership) = read_model_load_state(&self.conn)?;
+        if current_revision != request.expected_revision {
+            return Err(AppError::runtime_conflict(
+                "Model settings changed before this operation could run.",
+            ));
+        }
+
+        let executable_path = self.running_runtime_executable_path()?;
+        let result = run_unload_model(&ModelOperationInput {
+            executable_path: &executable_path,
+            persisted_ownership: &persisted_ownership,
+            cancel,
+            deadline: UNLOAD_MODEL_DEADLINE,
+        });
+
+        self.persist_model_operation_result(current_revision + 1, &executable_path, result)
+    }
+
+    /// Shared precondition for `load_model`/`unload_model`: a fast,
+    /// non-mutating read of the current runtime status. No `lms` subprocess
+    /// is spawned for model management while the runtime is not `running`.
+    fn running_runtime_executable_path(&self) -> Result<PathBuf, AppError> {
+        let runtime = self.read_model_runtime_status()?;
+        if runtime.availability != ModelRuntimeAvailability::Running {
+            return Err(AppError::invalid_runtime(MODEL_RUNTIME_NOT_RUNNING_MESSAGE));
+        }
+        let Some(executable_path) = runtime.executable_path.as_deref() else {
+            return Err(AppError::invalid_runtime(MODEL_RUNTIME_NOT_RUNNING_MESSAGE));
+        };
+        validate_runtime_executable_path(executable_path)
+    }
+
+    fn persist_model_operation_result(
+        &mut self,
+        next_revision: u64,
+        executable_path: &Path,
+        result: ModelOperationResult,
+    ) -> Result<ModelSlotStatus, AppError> {
+        let tx = self.conn.transaction().map_err(|_| {
+            AppError::storage_unavailable("Lattice could not update model load status.")
+        })?;
+        write_model_load_state(&tx, next_revision, &result.ownership)?;
+        tx.commit().map_err(|_| {
+            AppError::storage_unavailable("Lattice could not save model load status.")
+        })?;
+
+        let installed = list_installed_models(executable_path);
+        Ok(ModelSlotStatus {
+            revision: next_revision,
+            installed,
+            loaded: result.loaded,
+            ownership: result.ownership,
+            last_operation: Some(result.outcome),
+            last_checked_unix_seconds: Some(now_unix_seconds()),
+            message: MODEL_SLOT_READY_MESSAGE.to_string(),
+        })
+    }
+
     /// Best-effort stop of a currently-owned runtime, attempted from the
     /// application-exit hook. Never returns an error: an attached/unknown
     /// resource, missing executable, or storage failure all simply mean
@@ -401,6 +508,7 @@ fn migrate(conn: &mut Connection, db_path: Option<&Path>) -> Result<(), AppError
     if schema_version == CURRENT_SCHEMA_VERSION {
         read_settings(conn)?;
         read_model_runtime_status(conn)?;
+        read_model_load_state(conn)?;
         return Ok(());
     }
 
@@ -414,14 +522,20 @@ fn migrate(conn: &mut Connection, db_path: Option<&Path>) -> Result<(), AppError
             create_v1_schema(&tx)?;
             create_v2_schema(&tx)?;
             create_v3_schema(&tx)?;
+            create_v4_schema(&tx)?;
             write_model_runtime_status(&tx, &ModelRuntimeStatus::default())?;
         }
         1 => {
             create_v2_schema(&tx)?;
             create_v3_schema(&tx)?;
+            create_v4_schema(&tx)?;
             write_model_runtime_status(&tx, &ModelRuntimeStatus::default())?;
         }
-        2 => create_v3_schema(&tx)?,
+        2 => {
+            create_v3_schema(&tx)?;
+            create_v4_schema(&tx)?;
+        }
+        3 => create_v4_schema(&tx)?,
         _ => {
             return Err(AppError::unsupported_schema(
                 "Local settings schema is not supported by this Lattice version.",
@@ -490,6 +604,29 @@ fn create_v3_schema(tx: &Transaction<'_>) -> Result<(), AppError> {
             DEFAULT 'unknown' CHECK (ownership_state IN ('owned', 'attached', 'unknown'));
          ALTER TABLE model_runtime_discovery ADD COLUMN owned_daemon_pid INTEGER;
          ALTER TABLE model_runtime_discovery ADD COLUMN owned_since_unix_seconds INTEGER;",
+    )
+    .map_err(|_| AppError::migration_failed("Lattice could not migrate local settings."))?;
+
+    Ok(())
+}
+
+fn create_v4_schema(tx: &Transaction<'_>) -> Result<(), AppError> {
+    tx.execute(
+        "CREATE TABLE model_load_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            revision INTEGER NOT NULL CHECK (revision >= 1),
+            ownership_state TEXT NOT NULL CHECK (ownership_state IN ('owned', 'attached', 'unknown')),
+            owned_identifier TEXT,
+            owned_model_key TEXT,
+            owned_since_unix_seconds INTEGER
+        )",
+        [],
+    )
+    .map_err(|_| AppError::migration_failed("Lattice could not migrate local settings."))?;
+
+    tx.execute(
+        "INSERT INTO model_load_state (id, revision, ownership_state) VALUES (?1, 1, 'unknown')",
+        params![MODEL_LOAD_ROW_ID],
     )
     .map_err(|_| AppError::migration_failed("Lattice could not migrate local settings."))?;
 
@@ -862,6 +999,193 @@ fn runtime_approval_from_row(
     }))
 }
 
+struct ModelLoadStorageRow {
+    revision: i64,
+    ownership_state: String,
+    owned_identifier: Option<String>,
+    owned_model_key: Option<String>,
+    owned_since_unix_seconds: Option<i64>,
+}
+
+fn read_model_load_state(conn: &Connection) -> Result<(u64, ModelLoadOwnership), AppError> {
+    let row = conn
+        .query_row(
+            "SELECT revision, ownership_state, owned_identifier, owned_model_key, owned_since_unix_seconds
+             FROM model_load_state
+             WHERE id = ?1",
+            params![MODEL_LOAD_ROW_ID],
+            |row| {
+                Ok(ModelLoadStorageRow {
+                    revision: row.get(0)?,
+                    ownership_state: row.get(1)?,
+                    owned_identifier: row.get(2)?,
+                    owned_model_key: row.get(3)?,
+                    owned_since_unix_seconds: row.get(4)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|_| AppError::storage_unavailable("Lattice could not read model load status."))?;
+
+    let Some(row) = row else {
+        return Err(AppError::storage_unavailable(
+            "Lattice could not read model load status.",
+        ));
+    };
+
+    let revision = validate_revision(row.revision)?;
+    let ownership = model_load_ownership_from_row(&row)?;
+    Ok((revision, ownership))
+}
+
+fn write_model_load_state(
+    tx: &Transaction<'_>,
+    revision: u64,
+    ownership: &ModelLoadOwnership,
+) -> Result<(), AppError> {
+    let revision = i64::try_from(revision)
+        .map_err(|_| AppError::storage_unavailable("Lattice could not save model load status."))?;
+    let (identifier, model_key, since) = match ownership {
+        ModelLoadOwnership::Owned {
+            identifier,
+            model_key,
+            loaded_since_unix_seconds,
+        } => {
+            let since = i64::try_from(*loaded_since_unix_seconds).map_err(|_| {
+                AppError::storage_unavailable("Lattice could not save model load status.")
+            })?;
+            (
+                Some(identifier.as_str()),
+                Some(model_key.as_str()),
+                Some(since),
+            )
+        }
+        ModelLoadOwnership::Attached {
+            identifier,
+            model_key,
+        } => (Some(identifier.as_str()), Some(model_key.as_str()), None),
+        ModelLoadOwnership::Unknown => (None, None, None),
+    };
+
+    tx.execute(
+        "INSERT INTO model_load_state (id, revision, ownership_state, owned_identifier, owned_model_key, owned_since_unix_seconds)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(id) DO UPDATE SET
+            revision = excluded.revision,
+            ownership_state = excluded.ownership_state,
+            owned_identifier = excluded.owned_identifier,
+            owned_model_key = excluded.owned_model_key,
+            owned_since_unix_seconds = excluded.owned_since_unix_seconds",
+        params![
+            MODEL_LOAD_ROW_ID,
+            revision,
+            ownership.as_storage_value(),
+            identifier,
+            model_key,
+            since
+        ],
+    )
+    .map_err(|_| AppError::storage_unavailable("Lattice could not save model load status."))?;
+
+    Ok(())
+}
+
+fn model_load_ownership_from_row(
+    row: &ModelLoadStorageRow,
+) -> Result<ModelLoadOwnership, AppError> {
+    match row.ownership_state.as_str() {
+        "owned" => {
+            let (Some(identifier), Some(model_key), Some(since)) = (
+                row.owned_identifier.clone(),
+                row.owned_model_key.clone(),
+                row.owned_since_unix_seconds,
+            ) else {
+                return Ok(ModelLoadOwnership::Unknown);
+            };
+            Ok(ModelLoadOwnership::Owned {
+                identifier,
+                model_key,
+                loaded_since_unix_seconds: validate_revision(since)?,
+            })
+        }
+        "attached" => {
+            let (Some(identifier), Some(model_key)) =
+                (row.owned_identifier.clone(), row.owned_model_key.clone())
+            else {
+                return Ok(ModelLoadOwnership::Unknown);
+            };
+            Ok(ModelLoadOwnership::Attached {
+                identifier,
+                model_key,
+            })
+        }
+        "unknown" => Ok(ModelLoadOwnership::Unknown),
+        _ => Err(AppError::storage_unavailable(
+            "Lattice could not read model load status.",
+        )),
+    }
+}
+
+/// Composes the full read-only `ModelSlotStatus` for `get_model_slot_status`.
+/// Never mutates storage: like `ModelRuntimeStatus::with_current_file_state`,
+/// this recomputes a live view from the current external runtime state every
+/// call rather than trusting a previously-persisted reconciliation, so a
+/// stale `owned` record that no longer matches reality downgrades to
+/// `unknown` on every read without needing an explicit write-back.
+fn compose_model_slot_status(
+    revision: u64,
+    persisted_ownership: &ModelLoadOwnership,
+    runtime: &ModelRuntimeStatus,
+    last_operation: Option<ModelOperationOutcome>,
+) -> ModelSlotStatus {
+    if runtime.availability != ModelRuntimeAvailability::Running {
+        return ModelSlotStatus {
+            revision,
+            installed: Vec::new(),
+            loaded: None,
+            ownership: ModelLoadOwnership::Unknown,
+            last_operation,
+            last_checked_unix_seconds: None,
+            message: MODEL_RUNTIME_NOT_RUNNING_MESSAGE.to_string(),
+        };
+    }
+
+    let executable_path = runtime
+        .executable_path
+        .as_deref()
+        .and_then(|path| validate_runtime_executable_path(path).ok());
+    let Some(executable_path) = executable_path else {
+        return ModelSlotStatus {
+            revision,
+            installed: Vec::new(),
+            loaded: None,
+            ownership: ModelLoadOwnership::Unknown,
+            last_operation,
+            last_checked_unix_seconds: None,
+            message: MODEL_RUNTIME_NOT_RUNNING_MESSAGE.to_string(),
+        };
+    };
+
+    let installed = list_installed_models(&executable_path);
+    let (loaded, ownership) = observe_loaded_slot(&executable_path, persisted_ownership);
+
+    ModelSlotStatus {
+        revision,
+        installed,
+        loaded,
+        ownership,
+        last_operation,
+        last_checked_unix_seconds: Some(now_unix_seconds()),
+        message: MODEL_SLOT_READY_MESSAGE.to_string(),
+    }
+}
+
+fn now_unix_seconds() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_secs())
+}
+
 fn path_to_string(path: &Path) -> Result<String, AppError> {
     path.to_str()
         .map(ToOwned::to_owned)
@@ -922,8 +1246,9 @@ mod tests {
         UpdateAppSettingsRequest, CURRENT_SCHEMA_VERSION,
     };
     use crate::model_runtime::{
-        ConfigureModelRuntimeRequest, ModelRuntimeAvailability, ProbeModelRuntimeRequest,
-        RuntimeOwnership, StartModelRuntimeRequest,
+        ConfigureModelRuntimeRequest, GetModelSlotStatusRequest, LoadModelRequest,
+        ModelLoadOwnership, ModelRuntimeAvailability, ProbeModelRuntimeRequest, RuntimeOwnership,
+        StartModelRuntimeRequest, UnloadModelRequest,
     };
     use rusqlite::Connection;
     use std::{error::Error, fs, net::TcpListener, path::PathBuf, sync::atomic::AtomicBool};
@@ -1012,6 +1337,290 @@ mod tests {
         assert_eq!(status.revision, 1);
         assert_eq!(status.availability, ModelRuntimeAvailability::Missing);
         assert!(status.executable_path.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn model_slot_status_reports_unavailable_without_running_runtime() -> Result<(), Box<dyn Error>>
+    {
+        let store = SettingsStore::open_in_memory()?;
+
+        let status = store.get_model_slot_status(GetModelSlotStatusRequest {})?;
+
+        assert_eq!(status.revision, 1);
+        assert!(status.installed.is_empty());
+        assert!(status.loaded.is_none());
+        assert_eq!(status.ownership, ModelLoadOwnership::Unknown);
+        assert!(status.message.contains("Start the runtime"));
+        Ok(())
+    }
+
+    #[test]
+    fn load_model_requires_running_runtime() -> Result<(), Box<dyn Error>> {
+        let mut store = SettingsStore::open_in_memory()?;
+        let cancel = AtomicBool::new(false);
+
+        let error = store
+            .load_model(
+                LoadModelRequest {
+                    expected_revision: 1,
+                    model_key: "qwen/qwen2.5-0.5b-instruct".to_string(),
+                },
+                &cancel,
+            )
+            .err()
+            .ok_or("expected invalid runtime error")?;
+
+        assert_eq!(error.code, "runtime.invalid");
+        Ok(())
+    }
+
+    #[test]
+    fn unload_model_requires_running_runtime() -> Result<(), Box<dyn Error>> {
+        let mut store = SettingsStore::open_in_memory()?;
+        let cancel = AtomicBool::new(false);
+
+        let error = store
+            .unload_model(
+                UnloadModelRequest {
+                    expected_revision: 1,
+                },
+                &cancel,
+            )
+            .err()
+            .ok_or("expected invalid runtime error")?;
+
+        assert_eq!(error.code, "runtime.invalid");
+        Ok(())
+    }
+
+    #[test]
+    fn load_model_rejects_stale_revision() -> Result<(), Box<dyn Error>> {
+        let mut store = SettingsStore::open_in_memory()?;
+        let cancel = AtomicBool::new(false);
+
+        let error = store
+            .load_model(
+                LoadModelRequest {
+                    expected_revision: 99,
+                    model_key: "qwen/qwen2.5-0.5b-instruct".to_string(),
+                },
+                &cancel,
+            )
+            .err()
+            .ok_or("expected runtime conflict")?;
+
+        assert_eq!(error.code, "runtime.conflict");
+        Ok(())
+    }
+
+    #[test]
+    fn model_load_ownership_survives_restart_when_verified() -> Result<(), Box<dyn Error>> {
+        let listener = match TcpListener::bind("127.0.0.1:0") {
+            Ok(listener) => listener,
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => return Ok(()),
+            Err(error) => return Err(error.into()),
+        };
+        let port = listener.local_addr()?.port();
+        let directory = tempdir()?;
+        let db_path = directory.path().join("lattice.sqlite3");
+        let fixture = executable_fixture(&format!(
+            r#"state_dir="$(dirname "$0")/state"
+mkdir -p "$state_dir"
+case "$1 $2" in
+  "daemon up") touch "$state_dir/daemon"; echo '{{"status":"running","pid":4242,"isDaemon":true}}';;
+  "daemon status") if [ -f "$state_dir/daemon" ]; then echo '{{"status":"running","pid":4242,"isDaemon":true}}'; else echo '{{"status":"not-running"}}'; fi;;
+  "server start") touch "$state_dir/server"; echo "started";;
+  "server status") if [ -f "$state_dir/server" ]; then echo '{{"running":true,"port":{port}}}'; else echo '{{"running":false}}'; fi;;
+  *)
+    case "$1" in
+      --version) echo "lms v0.0.47";;
+      ls) echo '[{{"modelKey":"qwen/qwen2.5-0.5b-instruct","displayName":"Qwen2.5 0.5B Instruct","architecture":"qwen2","type":"llm","sizeBytes":400000000}}]';;
+      ps)
+        if [ -f "$state_dir/model-loaded" ]; then
+          echo '[{{"identifier":"lattice-managed","modelKey":"qwen/qwen2.5-0.5b-instruct","architecture":"qwen2","sizeBytes":400000000}}]'
+        else
+          echo '[]'
+        fi
+        ;;
+      load) touch "$state_dir/model-loaded"; echo "loaded";;
+      unload) rm -f "$state_dir/model-loaded"; echo "unloaded";;
+      *) exit 2;;
+    esac
+    ;;
+esac
+"#
+        ))?;
+
+        let mut store = SettingsStore::open(&db_path)?;
+        let configured = store.configure_model_runtime(ConfigureModelRuntimeRequest {
+            expected_revision: 1,
+            executable_path: fixture.path.to_string_lossy().to_string(),
+        })?;
+        let cancel = AtomicBool::new(false);
+        store.start_model_runtime(
+            StartModelRuntimeRequest {
+                expected_revision: configured.revision,
+            },
+            &cancel,
+        )?;
+
+        let loaded = store.load_model(
+            LoadModelRequest {
+                expected_revision: 1,
+                model_key: "qwen/qwen2.5-0.5b-instruct".to_string(),
+            },
+            &cancel,
+        )?;
+        assert!(matches!(loaded.ownership, ModelLoadOwnership::Owned { .. }));
+        drop(store);
+
+        let reopened = SettingsStore::open(&db_path)?;
+        let status = reopened.get_model_slot_status(GetModelSlotStatusRequest {})?;
+
+        assert!(matches!(status.ownership, ModelLoadOwnership::Owned { .. }));
+        assert_eq!(
+            status.loaded.map(|loaded| loaded.model_key),
+            Some("qwen/qwen2.5-0.5b-instruct".to_string())
+        );
+        drop(listener);
+        Ok(())
+    }
+
+    #[test]
+    fn unverifiable_model_load_ownership_downgrades_to_unknown_after_restart(
+    ) -> Result<(), Box<dyn Error>> {
+        let listener = match TcpListener::bind("127.0.0.1:0") {
+            Ok(listener) => listener,
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => return Ok(()),
+            Err(error) => return Err(error.into()),
+        };
+        let port = listener.local_addr()?.port();
+        let directory = tempdir()?;
+        let db_path = directory.path().join("lattice.sqlite3");
+        let fixture = executable_fixture(&format!(
+            r#"state_dir="$(dirname "$0")/state"
+mkdir -p "$state_dir"
+case "$1 $2" in
+  "daemon up") touch "$state_dir/daemon"; echo '{{"status":"running","pid":4242,"isDaemon":true}}';;
+  "daemon status") if [ -f "$state_dir/daemon" ]; then echo '{{"status":"running","pid":4242,"isDaemon":true}}'; else echo '{{"status":"not-running"}}'; fi;;
+  "server start") touch "$state_dir/server"; echo "started";;
+  "server status") if [ -f "$state_dir/server" ]; then echo '{{"running":true,"port":{port}}}'; else echo '{{"running":false}}'; fi;;
+  *)
+    case "$1" in
+      --version) echo "lms v0.0.47";;
+      ls) echo '[{{"modelKey":"qwen/qwen2.5-0.5b-instruct","displayName":"Qwen2.5 0.5B Instruct","architecture":"qwen2","type":"llm","sizeBytes":400000000}}]';;
+      ps)
+        if [ -f "$state_dir/model-loaded" ]; then
+          echo '[{{"identifier":"lattice-managed","modelKey":"qwen/qwen2.5-0.5b-instruct","architecture":"qwen2","sizeBytes":400000000}}]'
+        else
+          echo '[]'
+        fi
+        ;;
+      load) touch "$state_dir/model-loaded"; echo "loaded";;
+      unload) rm -f "$state_dir/model-loaded"; echo "unloaded";;
+      *) exit 2;;
+    esac
+    ;;
+esac
+"#
+        ))?;
+
+        let mut store = SettingsStore::open(&db_path)?;
+        let configured = store.configure_model_runtime(ConfigureModelRuntimeRequest {
+            expected_revision: 1,
+            executable_path: fixture.path.to_string_lossy().to_string(),
+        })?;
+        let cancel = AtomicBool::new(false);
+        store.start_model_runtime(
+            StartModelRuntimeRequest {
+                expected_revision: configured.revision,
+            },
+            &cancel,
+        )?;
+        store.load_model(
+            LoadModelRequest {
+                expected_revision: 1,
+                model_key: "qwen/qwen2.5-0.5b-instruct".to_string(),
+            },
+            &cancel,
+        )?;
+        drop(store);
+
+        // Simulate the loaded model having been released externally before restart.
+        fs::remove_file(
+            fixture
+                .path
+                .parent()
+                .ok_or("fixture has no parent")?
+                .join("state")
+                .join("model-loaded"),
+        )?;
+
+        let reopened = SettingsStore::open(&db_path)?;
+        let status = reopened.get_model_slot_status(GetModelSlotStatusRequest {})?;
+
+        assert_eq!(status.ownership, ModelLoadOwnership::Unknown);
+        assert!(status.loaded.is_none());
+        drop(listener);
+        Ok(())
+    }
+
+    #[test]
+    fn migrates_v3_settings_schema_to_model_load_schema() -> Result<(), Box<dyn Error>> {
+        let directory = tempdir()?;
+        let path = directory.path().join("lattice.sqlite3");
+        let conn = Connection::open(&path)?;
+        conn.execute_batch(
+            "CREATE TABLE app_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                revision INTEGER NOT NULL CHECK (revision >= 1),
+                appearance TEXT NOT NULL CHECK (appearance IN ('system', 'light', 'dark')),
+                idle_unload_minutes INTEGER NOT NULL CHECK (
+                    idle_unload_minutes >= 1 AND idle_unload_minutes <= 120
+                )
+            );
+            INSERT INTO app_settings (id, revision, appearance, idle_unload_minutes)
+            VALUES (1, 3, 'system', 5);
+            CREATE TABLE model_runtime_discovery (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                revision INTEGER NOT NULL CHECK (revision >= 1),
+                executable_path TEXT,
+                availability TEXT NOT NULL,
+                cli_version TEXT,
+                approved_executable_fingerprint TEXT,
+                approved_cli_version TEXT,
+                approved_checked_at_unix_seconds INTEGER,
+                daemon_status TEXT NOT NULL,
+                daemon_pid INTEGER,
+                daemon_is_daemon INTEGER,
+                daemon_version TEXT,
+                server_status TEXT NOT NULL,
+                server_port INTEGER,
+                server_endpoint TEXT,
+                last_checked_unix_seconds INTEGER,
+                message TEXT NOT NULL,
+                ownership_state TEXT NOT NULL DEFAULT 'unknown',
+                owned_daemon_pid INTEGER,
+                owned_since_unix_seconds INTEGER
+            );
+            INSERT INTO model_runtime_discovery (id, revision, availability, daemon_status, server_status, message)
+            VALUES (1, 1, 'missing', 'unknown', 'unknown', 'No runtime executable configured.');
+            PRAGMA user_version = 3;",
+        )?;
+        drop(conn);
+
+        let store = SettingsStore::open(&path)?;
+
+        assert_eq!(store.read()?.appearance, AppearancePreference::System);
+        assert_eq!(
+            store.read_model_runtime_status()?.availability,
+            ModelRuntimeAvailability::Missing
+        );
+        let status = store.get_model_slot_status(GetModelSlotStatusRequest {})?;
+        assert_eq!(status.revision, 1);
+        assert_eq!(status.ownership, ModelLoadOwnership::Unknown);
+        assert!(backup_count(directory.path())? >= 1);
         Ok(())
     }
 

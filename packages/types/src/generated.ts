@@ -10,7 +10,11 @@ export const APP_COMMANDS = {
   probeModelRuntime: 'probe_model_runtime',
   startModelRuntime: 'start_model_runtime',
   stopModelRuntime: 'stop_model_runtime',
-  cancelModelRuntimeOperation: 'cancel_model_runtime_operation'
+  cancelModelRuntimeOperation: 'cancel_model_runtime_operation',
+  getModelSlotStatus: 'get_model_slot_status',
+  loadModel: 'load_model',
+  unloadModel: 'unload_model',
+  cancelModelOperation: 'cancel_model_operation'
 } as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -33,6 +37,16 @@ export type RuntimeOperationOutcome =
   | 'alreadyRunning'
   | 'stopped'
   | 'alreadyStopped'
+  | 'refused'
+  | 'cancelled'
+  | 'timedOut'
+  | 'failed';
+
+export type ModelOperationOutcome =
+  | 'loaded'
+  | 'alreadyLoaded'
+  | 'unloaded'
+  | 'alreadyUnloaded'
   | 'refused'
   | 'cancelled'
   | 'timedOut'
@@ -139,3 +153,61 @@ export interface StopModelRuntimeRequest {
 }
 
 export type CancelModelRuntimeOperationRequest = Record<string, never>;
+
+export interface ModelDescriptor {
+  readonly modelKey: string;
+  readonly displayName: string;
+  readonly architecture?: string;
+  readonly isLlm: boolean;
+  readonly sizeBytes?: number;
+}
+
+export interface LoadedModelObservation {
+  readonly identifier: string;
+  readonly modelKey: string;
+  readonly architecture?: string;
+  readonly sizeBytes?: number;
+}
+
+export interface ModelLoadOwnershipOwned {
+  readonly state: 'owned';
+  readonly identifier: string;
+  readonly modelKey: string;
+  readonly loadedSinceUnixSeconds: number;
+}
+
+export interface ModelLoadOwnershipAttached {
+  readonly state: 'attached';
+  readonly identifier: string;
+  readonly modelKey: string;
+}
+
+export interface ModelLoadOwnershipUnknown {
+  readonly state: 'unknown';
+}
+
+export type ModelLoadOwnership =
+  ModelLoadOwnershipOwned | ModelLoadOwnershipAttached | ModelLoadOwnershipUnknown;
+
+export interface ModelSlotStatus {
+  readonly revision: number;
+  readonly installed: readonly ModelDescriptor[];
+  readonly loaded?: LoadedModelObservation;
+  readonly ownership: ModelLoadOwnership;
+  readonly lastOperation?: ModelOperationOutcome;
+  readonly lastCheckedUnixSeconds?: number;
+  readonly message: string;
+}
+
+export type GetModelSlotStatusRequest = Record<string, never>;
+
+export interface LoadModelRequest {
+  readonly expectedRevision: number;
+  readonly modelKey: string;
+}
+
+export interface UnloadModelRequest {
+  readonly expectedRevision: number;
+}
+
+export type CancelModelOperationRequest = Record<string, never>;

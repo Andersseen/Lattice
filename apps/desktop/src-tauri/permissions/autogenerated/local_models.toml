@@ -1,0 +1,21 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-local-models"
+description = "Enables local model management commands without any pre-configured scope."
+commands.allow = [
+  "get_model_slot_status",
+  "load_model",
+  "unload_model",
+  "cancel_model_operation",
+]
+
+[[permission]]
+identifier = "deny-local-models"
+description = "Denies local model management commands without any pre-configured scope."
+commands.deny = [
+  "get_model_slot_status",
+  "load_model",
+  "unload_model",
+  "cancel_model_operation",
+]

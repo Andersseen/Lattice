@@ -107,7 +107,7 @@ Reuses `run_bounded_command` from `discovery.rs` (already generalized in 0.6 to 
 
 ## Shutdown
 
-No new shutdown-hook behavior. 0.6's existing `stop_owned_model_runtime_for_shutdown` stops the owned daemon/server; llmster itself is expected to release loaded models as part of that daemon shutdown. This change does not add a separate best-effort `unload` call on exit, since there is no evidence an orphaned *loaded model* (as opposed to an orphaned *process*) has any cost once its owning daemon is stopped — this is recorded as an open question for the P2/P4 resource profiles, not assumed safe without measurement.
+No new shutdown-hook behavior. 0.6's existing `stop_owned_model_runtime_for_shutdown` stops the owned daemon/server; llmster itself is expected to release loaded models as part of that daemon shutdown. This change does not add a separate best-effort `unload` call on exit, since there is no evidence an orphaned _loaded model_ (as opposed to an orphaned _process_) has any cost once its owning daemon is stopped — this is recorded as an open question for the P2/P4 resource profiles, not assumed safe without measurement.
 
 ## Storage
 

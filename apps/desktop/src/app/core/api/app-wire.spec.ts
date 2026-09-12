@@ -4,8 +4,10 @@ import {
   decodeAppInfo,
   decodeAppSettings,
   decodeModelRuntimeStatus,
+  decodeModelSlotStatus,
   normalizeAppError,
   normalizeModelRuntimeError,
+  normalizeModelSlotError,
   normalizeSettingsError
 } from './app-wire';
 
@@ -195,6 +197,63 @@ describe('app wire boundary', () => {
     expect(normalizeModelRuntimeError(new Error('raw process failure'))).toEqual({
       code: 'bridge.unknown',
       message: 'Lattice could not read model runtime status.',
+      recoverable: true
+    });
+  });
+
+  it('decodes model slot status from untrusted IPC payloads', () => {
+    const payload = {
+      revision: 2,
+      installed: [
+        {
+          modelKey: 'qwen/qwen2.5-0.5b-instruct',
+          displayName: 'Qwen2.5 0.5B Instruct',
+          architecture: 'qwen2',
+          isLlm: true,
+          sizeBytes: 400_000_000
+        }
+      ],
+      loaded: {
+        identifier: 'lattice-managed',
+        modelKey: 'qwen/qwen2.5-0.5b-instruct',
+        architecture: 'qwen2',
+        sizeBytes: 400_000_000
+      },
+      ownership: {
+        state: 'owned',
+        identifier: 'lattice-managed',
+        modelKey: 'qwen/qwen2.5-0.5b-instruct',
+        loadedSinceUnixSeconds: 100
+      },
+      lastOperation: 'loaded',
+      lastCheckedUnixSeconds: 123,
+      message: 'Model inventory refreshed.'
+    };
+
+    expect(decodeModelSlotStatus(payload)).toEqual(payload);
+  });
+
+  it('rejects malformed model slot status payloads', () => {
+    expect(() =>
+      decodeModelSlotStatus({
+        revision: 1,
+        installed: [{ modelKey: 'x' }],
+        ownership: { state: 'unknown' },
+        message: 'bad inventory'
+      })
+    ).toThrow(
+      expect.objectContaining<AppError>({
+        code: 'bridge.unknown',
+        message: 'Lattice could not read model slot status.',
+        recoverable: true
+      })
+    );
+  });
+
+  it('normalizes unknown model slot errors with the slot fallback message', () => {
+    expect(normalizeModelSlotError(new Error('raw process failure'))).toEqual({
+      code: 'bridge.unknown',
+      message: 'Lattice could not read model slot status.',
       recoverable: true
     });
   });

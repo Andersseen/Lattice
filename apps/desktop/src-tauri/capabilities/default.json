@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window capability for Lattice foundation metadata, settings, and runtime discovery/lifecycle.",
+  "description": "Main window capability for Lattice foundation metadata, settings, runtime discovery/lifecycle, and local model management.",
   "windows": ["main"],
   "permissions": [
     "allow-get-app-info",
     "allow-application-settings",
     "allow-model-runtime-discovery",
-    "allow-model-runtime-lifecycle"
+    "allow-model-runtime-lifecycle",
+    "allow-local-models"
   ]
 }
