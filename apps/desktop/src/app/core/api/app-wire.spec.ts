@@ -3,9 +3,12 @@ import type { AppError } from '@lattice/types';
 import {
   decodeAppInfo,
   decodeAppSettings,
+  decodeChatRunHandle,
+  decodeChatStreamEvent,
   decodeModelRuntimeStatus,
   decodeModelSlotStatus,
   normalizeAppError,
+  normalizeChatError,
   normalizeModelRuntimeError,
   normalizeModelSlotError,
   normalizeSettingsError
@@ -256,5 +259,51 @@ describe('app wire boundary', () => {
       message: 'Lattice could not read model slot status.',
       recoverable: true
     });
+  });
+
+  it('decodes a chat run handle from untrusted IPC payloads', () => {
+    expect(decodeChatRunHandle({ runId: 'run-1' })).toEqual({ runId: 'run-1' });
+  });
+
+  it('rejects a malformed chat run handle', () => {
+    expect(() => decodeChatRunHandle({})).toThrow(
+      expect.objectContaining<AppError>({
+        code: 'bridge.unknown',
+        message: 'Lattice could not start the chat response.',
+        recoverable: true
+      })
+    );
+  });
+
+  it('normalizes unknown chat errors with the chat fallback message', () => {
+    expect(normalizeChatError(new Error('raw transport failure'))).toEqual({
+      code: 'bridge.unknown',
+      message: 'Lattice could not start the chat response.',
+      recoverable: true
+    });
+  });
+
+  it.each([
+    ['started', { kind: 'started', runId: 'run-1', modelKey: 'qwen-small' }],
+    ['delta', { kind: 'delta', runId: 'run-1', sequence: 0, text: 'Hi' }],
+    ['completed', { kind: 'completed', runId: 'run-1', sequence: 3, finishReason: 'stop' }],
+    ['cancelled', { kind: 'cancelled', runId: 'run-1', sequence: 1 }],
+    [
+      'failed',
+      {
+        kind: 'failed',
+        runId: 'run-1',
+        sequence: 0,
+        error: { code: 'chat.failed', message: 'boom', recoverable: true }
+      }
+    ]
+  ])('decodes a %s chat stream event from an untrusted channel payload', (_kind, payload) => {
+    expect(decodeChatStreamEvent(payload)).toEqual(payload);
+  });
+
+  it('decodes a malformed chat stream event to null instead of throwing', () => {
+    expect(decodeChatStreamEvent({ kind: 'delta', runId: 'run-1' })).toBeNull();
+    expect(decodeChatStreamEvent({ kind: 'unknown-kind', runId: 'run-1' })).toBeNull();
+    expect(decodeChatStreamEvent('not an object')).toBeNull();
   });
 });

@@ -1,0 +1,60 @@
+<section class="chat" aria-labelledby="chat-title">
+  <div class="heading">
+    <p class="eyebrow">Local streaming chat</p>
+    <h1 id="chat-title">Chat</h1>
+  </div>
+
+  @if (loadedModelKey(); as modelKey) {
+  <p class="status-text">Talking to <strong>{{ modelKey }}</strong>.</p>
+  } @else {
+  <div class="notice" role="alert">
+    <p>Load a model on the Models page before starting a chat.</p>
+  </div>
+  } @if (error(); as chatError) {
+  <div class="notice" role="alert">
+    <p>{{ chatError.message }}</p>
+  </div>
+  }
+
+  <section class="transcript" aria-label="Conversation" aria-live="polite">
+    @if (transcript().length === 0) {
+    <p class="status-text">No messages yet. Say hello.</p>
+    } @for (entry of transcript(); track $index) {
+    <article class="message" [class.assistant]="entry.role === 'assistant'">
+      <span class="role">{{ entry.role }}</span>
+      <p class="text">
+        {{ entry.text }}@if (entry.status === 'streaming') {<span class="cursor">▍</span>}
+      </p>
+      @if (entry.status === 'cancelled') {
+      <span class="status-tag">Cancelled</span>
+      } @if (entry.status === 'failed') {
+      <span class="status-tag">Failed</span>
+      }
+    </article>
+    }
+  </section>
+
+  <form class="composer" (submit)="$event.preventDefault(); send()">
+    <label class="composer-label">
+      <span>Message</span>
+      <textarea
+        rows="3"
+        placeholder="Send a message"
+        [value]="draft()"
+        [disabled]="!canSend()"
+        (input)="setDraft($event)"
+      ></textarea>
+    </label>
+
+    <div class="actions">
+      <volt-button type="submit" variant="outline" size="md" [disabled]="!canSend()">
+        {{ isStreaming() ? 'Streaming' : 'Send' }}
+      </volt-button>
+      @if (isStreaming()) {
+      <volt-button type="button" variant="outline" size="sm" (click)="cancel()">
+        Cancel
+      </volt-button>
+      }
+    </div>
+  </form>
+</section>

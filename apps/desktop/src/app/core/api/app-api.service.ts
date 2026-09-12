@@ -4,8 +4,12 @@ import {
   type AppError,
   type AppInfo,
   type AppSettings,
+  type CancelChatStreamRequest,
   type CancelModelOperationRequest,
   type CancelModelRuntimeOperationRequest,
+  type ChatRequest,
+  type ChatRunHandle,
+  type ChatStreamEvent,
   type ConfigureModelRuntimeRequest,
   type LoadModelRequest,
   type ModelRuntimeStatus,
@@ -21,15 +25,19 @@ import {
 import {
   decodeAppInfo,
   decodeAppSettings,
+  decodeChatRunHandle,
+  decodeChatStreamEvent,
   decodeModelRuntimeStatus,
   decodeModelSlotStatus,
   normalizeAppError,
+  normalizeChatError,
   normalizeModelRuntimeError,
   normalizeModelSlotError,
   normalizeSettingsError
 } from './app-wire';
 import { getWebSettings, resetWebSettings, updateWebSettings } from './app-settings-fallback';
 import { createWebFallbackInfo } from './app-info-fallback';
+import { cancelWebChatStream, startWebChatStream } from './chat-fallback';
 import {
   cancelWebModelRuntimeOperation,
   configureWebModelRuntime,
@@ -265,6 +273,57 @@ export class AppApiService {
       });
     } catch (error: unknown) {
       throw normalizeModelSlotError(error);
+    }
+  }
+
+  /**
+   * `onEvent` is called for every event of the run, including its one
+   * terminal event; a malformed single channel payload is skipped rather
+   * than thrown (see `decodeChatStreamEvent`), so later valid events for
+   * the same run keep arriving.
+   */
+  async startChatStream(
+    request: ChatRequest,
+    onEvent: (event: ChatStreamEvent) => void
+  ): Promise<ChatRunHandle> {
+    if (!isTauriRuntime()) {
+      return startWebChatStream(request, onEvent);
+    }
+
+    try {
+      const { invoke, Channel } = await import('@tauri-apps/api/core');
+      const channel = new Channel<unknown>();
+      channel.onmessage = (raw: unknown) => {
+        const event = decodeChatStreamEvent(raw);
+        if (event !== null) {
+          onEvent(event);
+        }
+      };
+
+      return decodeChatRunHandle(
+        await invoke<unknown>(APP_COMMANDS.startChatStream, {
+          request,
+          channel
+        })
+      );
+    } catch (error: unknown) {
+      throw normalizeChatError(error);
+    }
+  }
+
+  async cancelChatStream(request: CancelChatStreamRequest): Promise<void> {
+    if (!isTauriRuntime()) {
+      cancelWebChatStream(request.runId);
+      return;
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke<void>(APP_COMMANDS.cancelChatStream, {
+        request
+      });
+    } catch (error: unknown) {
+      throw normalizeChatError(error);
     }
   }
 }

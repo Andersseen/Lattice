@@ -93,6 +93,33 @@ impl AppError {
             correlation_id: None,
         }
     }
+
+    pub const fn chat_invalid(message: &'static str) -> Self {
+        Self {
+            code: "chat.invalid",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn chat_conflict(message: &'static str) -> Self {
+        Self {
+            code: "chat.conflict",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn chat_failed(message: &'static str) -> Self {
+        Self {
+            code: "chat.failed",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
 }
 
 #[cfg(test)]

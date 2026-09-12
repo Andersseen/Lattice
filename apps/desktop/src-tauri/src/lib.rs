@@ -1,9 +1,11 @@
 use lattice_core::{
-    app_info, AppError, AppInfo, AppSettings, CancelModelOperationRequest,
-    CancelModelRuntimeOperationRequest, ConfigureModelRuntimeRequest, GetModelSlotStatusRequest,
-    LoadModelRequest, ModelRuntimeStatus, ModelSlotStatus, ProbeModelRuntimeRequest,
-    ResetAppSettingsRequest, SettingsStore, StartModelRuntimeRequest, StopModelRuntimeRequest,
-    UnloadModelRequest, UpdateAppSettingsRequest,
+    app_info, authorize_chat_request, new_chat_run_id, run_chat_stream, AppError, AppInfo,
+    AppSettings, CancelChatStreamRequest, CancelModelOperationRequest,
+    CancelModelRuntimeOperationRequest, ChatRequest, ChatRunHandle, ChatStreamEvent,
+    ConfigureModelRuntimeRequest, GetModelSlotStatusRequest, LoadModelRequest, ModelRuntimeStatus,
+    ModelSlotStatus, ProbeModelRuntimeRequest, ResetAppSettingsRequest, SettingsStore,
+    StartModelRuntimeRequest, StopModelRuntimeRequest, UnloadModelRequest,
+    UpdateAppSettingsRequest,
 };
 use std::{
     path::PathBuf,
@@ -11,6 +13,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
     },
+    thread,
 };
 use tauri::Manager;
 
@@ -21,6 +24,16 @@ struct DesktopState {
     settings: Mutex<SettingsStore>,
     runtime_operation_cancelled: Arc<AtomicBool>,
     model_operation_cancelled: Arc<AtomicBool>,
+    active_chat_run: Mutex<Option<ActiveChatRun>>,
+}
+
+/// One globally active chat run's identity and shared cancellation flag,
+/// mirroring `runtime_operation_cancelled`/`model_operation_cancelled`'s
+/// existing pattern but keyed by run so a stale/unknown `run_id` passed to
+/// `cancel_chat_stream` is a no-op rather than cancelling the wrong run.
+struct ActiveChatRun {
+    run_id: String,
+    cancel: Arc<AtomicBool>,
 }
 
 #[tauri::command]
@@ -133,6 +146,17 @@ fn unload_model(
     state: tauri::State<'_, DesktopState>,
     request: UnloadModelRequest,
 ) -> Result<ModelSlotStatus, AppError> {
+    let chat_run_active = state
+        .active_chat_run
+        .lock()
+        .map(|guard| guard.is_some())
+        .unwrap_or(false);
+    if chat_run_active {
+        return Err(AppError::runtime_conflict(
+            "Cancel the active chat before unloading its model.",
+        ));
+    }
+
     state
         .model_operation_cancelled
         .store(false, Ordering::SeqCst);
@@ -148,6 +172,132 @@ fn cancel_model_operation(
     state
         .model_operation_cancelled
         .store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+/// Reserves the single global chat-run slot, checks the model lease and
+/// runtime endpoint, then spawns one orchestrator thread that runs
+/// `run_chat_stream` and forwards every event through `channel`. Returns
+/// as soon as the slot is reserved and preconditions pass — before the
+/// spawned thread produces its first event — so the frontend's channel is
+/// always bound before any event can arrive. See design.md's "Model lease
+/// and run ownership" and "Stream lifecycle, limits and cancellation".
+#[tauri::command]
+fn start_chat_stream(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, DesktopState>,
+    request: ChatRequest,
+    channel: tauri::ipc::Channel<ChatStreamEvent>,
+) -> Result<ChatRunHandle, AppError> {
+    let run_id = new_chat_run_id();
+    let cancel = Arc::new(AtomicBool::new(false));
+
+    {
+        let mut active_chat_run = state.active_chat_run.lock().map_err(|_| {
+            AppError::storage_unavailable("Lattice could not access chat run state.")
+        })?;
+        if active_chat_run.is_some() {
+            return Err(AppError::chat_conflict("A response is already streaming."));
+        }
+        *active_chat_run = Some(ActiveChatRun {
+            run_id: run_id.clone(),
+            cancel: cancel.clone(),
+        });
+    }
+
+    match begin_chat_stream(&state, &request) {
+        Ok(endpoint) => {
+            let handle = ChatRunHandle {
+                run_id: run_id.clone(),
+            };
+            let guard_run_id = run_id.clone();
+            thread::spawn(move || {
+                // Cleared on every exit path of this closure, including an
+                // unexpected panic unwinding through it: `Drop` runs during
+                // unwinding, so the active-run slot is never left stuck even
+                // if `run_chat_stream`/`channel.send` panics unexpectedly.
+                let _guard = ActiveChatRunGuard {
+                    app,
+                    run_id: guard_run_id,
+                };
+                run_chat_stream(&endpoint, run_id, request, &cancel, |event| {
+                    let _ = channel.send(event);
+                });
+            });
+            Ok(handle)
+        }
+        Err(error) => {
+            clear_active_chat_run(&state, &run_id);
+            Err(error)
+        }
+    }
+}
+
+/// RAII guard that clears the active-run slot when dropped — on normal
+/// return from the spawning thread's closure, or, just as importantly,
+/// while unwinding through it after an unexpected panic. See
+/// `start_chat_stream`.
+struct ActiveChatRunGuard {
+    app: tauri::AppHandle,
+    run_id: String,
+}
+
+impl Drop for ActiveChatRunGuard {
+    fn drop(&mut self) {
+        if let Some(state) = self.app.try_state::<DesktopState>() {
+            clear_active_chat_run(&state, &self.run_id);
+        }
+    }
+}
+
+/// Fast, non-mutating precondition: the requested model must be the one
+/// currently owned and loaded, and the runtime must expose a reachable
+/// endpoint. No subprocess/network call beyond the existing settings-store
+/// reads `get_model_slot_status`/`read_model_runtime_status` already make.
+fn begin_chat_stream(
+    state: &tauri::State<'_, DesktopState>,
+    request: &ChatRequest,
+) -> Result<String, AppError> {
+    let slot_status = with_settings_store(state, |store| {
+        store.get_model_slot_status(GetModelSlotStatusRequest {})
+    })?;
+    authorize_chat_request(&slot_status, request)?;
+
+    let runtime_status = with_settings_store(state, |store| store.read_model_runtime_status())?;
+    runtime_status.server.endpoint.ok_or(AppError::chat_invalid(
+        "The local model runtime has no reachable endpoint.",
+    ))
+}
+
+/// Clears the active-run slot only if it still names `run_id`, so a stale
+/// clear from an abandoned reader thread can never clear a newer run.
+fn clear_active_chat_run(state: &DesktopState, run_id: &str) {
+    let Ok(mut active_chat_run) = state.active_chat_run.lock() else {
+        return;
+    };
+    if active_chat_run
+        .as_ref()
+        .map(|active| active.run_id.as_str())
+        == Some(run_id)
+    {
+        *active_chat_run = None;
+    }
+}
+
+#[tauri::command]
+fn cancel_chat_stream(
+    state: tauri::State<'_, DesktopState>,
+    request: CancelChatStreamRequest,
+) -> Result<(), AppError> {
+    let active_chat_run = state
+        .active_chat_run
+        .lock()
+        .map_err(|_| AppError::storage_unavailable("Lattice could not access chat run state."))?;
+    if let Some(active) = active_chat_run.as_ref() {
+        if active.run_id == request.run_id {
+            active.cancel.store(true, Ordering::SeqCst);
+        }
+    }
     Ok(())
 }
 
@@ -167,6 +317,7 @@ fn run_desktop_shell() -> Result<(), tauri::Error> {
                 settings: Mutex::new(settings),
                 runtime_operation_cancelled: Arc::new(AtomicBool::new(false)),
                 model_operation_cancelled: Arc::new(AtomicBool::new(false)),
+                active_chat_run: Mutex::new(None),
             });
             Ok(())
         })
@@ -189,17 +340,37 @@ fn run_desktop_shell() -> Result<(), tauri::Error> {
             get_model_slot_status,
             load_model,
             unload_model,
-            cancel_model_operation
+            cancel_model_operation,
+            start_chat_stream,
+            cancel_chat_stream
         ])
         .build(tauri::generate_context!())?;
 
     app.run(|app_handle, event| {
         if let tauri::RunEvent::Exit = event {
+            cancel_active_chat_run_before_exit(app_handle);
             stop_owned_runtime_before_exit(app_handle);
         }
     });
 
     Ok(())
+}
+
+/// Best-effort cancel signal for any in-flight chat run, attempted right
+/// before the application exits. Never blocks exit: the abandoned reader
+/// thread (see design.md's "Stream lifecycle, limits and cancellation") is
+/// simply dropped along with the rest of the process; this only spares it
+/// from attempting a corrective action it can no longer report anywhere.
+fn cancel_active_chat_run_before_exit(app_handle: &tauri::AppHandle) {
+    let Some(state) = app_handle.try_state::<DesktopState>() else {
+        return;
+    };
+    let Ok(active_chat_run) = state.active_chat_run.lock() else {
+        return;
+    };
+    if let Some(active) = active_chat_run.as_ref() {
+        active.cancel.store(true, Ordering::SeqCst);
+    }
 }
 
 /// Best-effort stop of a runtime this session owns, attempted right before
@@ -244,10 +415,11 @@ fn startup_failure_message(error: &tauri::Error) -> String {
 mod tests {
     use super::{get_app_info, startup_failure_message, STARTUP_FAILURE_EXIT_CODE};
     use lattice_core::{
-        AppRuntime, CANCEL_MODEL_OPERATION_COMMAND, CANCEL_MODEL_RUNTIME_OPERATION_COMMAND,
-        CONFIGURE_MODEL_RUNTIME_COMMAND, GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND,
-        GET_MODEL_RUNTIME_STATUS_COMMAND, GET_MODEL_SLOT_STATUS_COMMAND, LOAD_MODEL_COMMAND,
-        PROBE_MODEL_RUNTIME_COMMAND, RESET_APP_SETTINGS_COMMAND, START_MODEL_RUNTIME_COMMAND,
+        AppRuntime, CANCEL_CHAT_STREAM_COMMAND, CANCEL_MODEL_OPERATION_COMMAND,
+        CANCEL_MODEL_RUNTIME_OPERATION_COMMAND, CONFIGURE_MODEL_RUNTIME_COMMAND,
+        GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND,
+        GET_MODEL_SLOT_STATUS_COMMAND, LOAD_MODEL_COMMAND, PROBE_MODEL_RUNTIME_COMMAND,
+        RESET_APP_SETTINGS_COMMAND, START_CHAT_STREAM_COMMAND, START_MODEL_RUNTIME_COMMAND,
         STOP_MODEL_RUNTIME_COMMAND, UNLOAD_MODEL_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
     };
     use serde_json::Value;
@@ -281,7 +453,9 @@ mod tests {
                 GET_MODEL_SLOT_STATUS_COMMAND,
                 LOAD_MODEL_COMMAND,
                 UNLOAD_MODEL_COMMAND,
-                CANCEL_MODEL_OPERATION_COMMAND
+                CANCEL_MODEL_OPERATION_COMMAND,
+                START_CHAT_STREAM_COMMAND,
+                CANCEL_CHAT_STREAM_COMMAND
             ],
             [
                 "get_app_info",
@@ -297,7 +471,9 @@ mod tests {
                 "get_model_slot_status",
                 "load_model",
                 "unload_model",
-                "cancel_model_operation"
+                "cancel_model_operation",
+                "start_chat_stream",
+                "cancel_chat_stream"
             ]
         );
     }
@@ -373,7 +549,8 @@ mod tests {
                 "allow-application-settings".to_string(),
                 "allow-model-runtime-discovery".to_string(),
                 "allow-model-runtime-lifecycle".to_string(),
-                "allow-local-models".to_string()
+                "allow-local-models".to_string(),
+                "allow-chat-streaming".to_string()
             ]
         );
         assert!(capability.get("remote").is_none());

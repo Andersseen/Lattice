@@ -1,0 +1,129 @@
+.chat {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.heading {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+h1,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 2rem;
+  line-height: 1.15;
+}
+
+.status-text {
+  color: var(--color-muted);
+}
+
+.notice {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+}
+
+.transcript {
+  display: grid;
+  gap: 0.75rem;
+  min-height: 12rem;
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+}
+
+.message {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+  max-width: 42rem;
+}
+
+.message.assistant {
+  justify-self: end;
+  justify-items: end;
+  text-align: right;
+}
+
+.role {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cursor {
+  color: var(--color-accent);
+}
+
+.status-tag {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.composer {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.composer-label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.composer-label span {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.45rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  font: inherit;
+  padding: 0.6rem 0.75rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+@media (max-width: 56rem) {
+  .message,
+  .message.assistant {
+    max-width: 100%;
+    justify-self: stretch;
+    justify-items: stretch;
+    text-align: left;
+  }
+
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

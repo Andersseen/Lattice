@@ -23,17 +23,19 @@ Lattice is a local-first desktop application with a deliberately narrow boundary
 
 ## Current Implementation
 
-The current code implements only a smoke path:
+Status as of 2026-09-12, on the active roadmap branch (`0.2` archived into the permanent `application-api` spec; `0.3`–`0.8` implemented with their recorded evidence limits in `docs/verification/`, not yet archived):
 
-- Angular shell and lazy routes.
-- `AppApiService` as the typed frontend boundary.
-- Tauri IPC command `get_app_info`.
-- `lattice-core::app_info()` returning structured app metadata.
-- Structured app error shape with `code`, `message`, and `recoverable`.
+- Angular shell, lazy routes, and a typed `AppApiService` frontend boundary with a browser fallback for every capability below.
+- Rust-generated wire contracts (`packages/types`), a checked Tauri IPC command inventory, and one structured `AppError` normalization boundary (`code`, `message`, `recoverable`).
+- A restrictive production CSP and explicit command/window permissions (`0.3`).
+- Rust-owned SQLite application settings with versioned migrations and backups (`0.4`).
+- `ModelRuntime` discovery and owned/attached start-stop lifecycle for llmster, behind an isolated adapter (`0.5`–`0.6`).
+- Installed/loaded local model inventory and a single managed load slot (`0.7`).
+- A provider-neutral local completion port (`crates/lattice-core/src/providers`), a local OpenAI-compatible (llmster) streaming adapter, a Tauri streaming channel, and a Chat UI with cancellation and a model lease (`0.8`, ADR 0012).
 
-This proves the path without creating fake agent, model, storage, MCP, or skill implementations.
+This proves each boundary with a real first consumer rather than creating fake agent, storage, MCP, or skill implementations ahead of their own specs.
 
-The [source-based assessment](v1/repository-assessment.md) records verification limits and debts: manual Rust/TS DTO duplication, static Rust error messages, duplicate error normalization, disabled CSP, missing explicit strict template checking, minimal unit coverage and no installer certification. These are planned corrections, not implemented safeguards.
+The [source-based assessment](v1/repository-assessment.md) records this baseline's verification limits and debts at the point it was inspected; `docs/verification/` and `docs/v1/capability-map.md` carry the current status per minor. Native GUI/packaged-app evidence and real llmster smoke evidence remain pending per minor where recorded — a passing fixture/browser test is not native or real-runtime evidence.
 
 ## Planned v1 Architecture
 
@@ -55,7 +57,7 @@ Angular owns:
 Rust owns:
 
 - Native filesystem access.
-- Future SQLite/storage access.
+- SQLite storage, split by concern under `crates/lattice-core/src/storage/` (connection/migration mechanics, application settings, runtime/model state) behind one `SettingsStore` handle. A future persistence domain (conversations, memory, tasks) gets its own sibling module and its own store/IPC surface, not another method bolted onto `SettingsStore`.
 - Process spawning and lifecycle.
 - Secrets and OS APIs.
 - Runtime orchestration.

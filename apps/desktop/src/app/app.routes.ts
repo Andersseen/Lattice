@@ -14,6 +14,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/models/models.page').then((module) => module.ModelsPage)
   },
   {
+    path: 'chat',
+    loadComponent: () => import('./pages/chat/chat.page').then((module) => module.ChatPage)
+  },
+  {
     path: 'settings',
     loadComponent: () =>
       import('./pages/settings/settings.page').then((module) => module.SettingsPage)

@@ -5,7 +5,8 @@ use crate::model_runtime::{
     GET_MODEL_SLOT_STATUS_COMMAND, LOAD_MODEL_COMMAND, PROBE_MODEL_RUNTIME_COMMAND,
     START_MODEL_RUNTIME_COMMAND, STOP_MODEL_RUNTIME_COMMAND, UNLOAD_MODEL_COMMAND,
 };
-use crate::settings::{
+use crate::providers::{CANCEL_CHAT_STREAM_COMMAND, START_CHAT_STREAM_COMMAND};
+use crate::storage::{
     GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
 };
 
@@ -27,7 +28,9 @@ export const APP_COMMANDS = {{
   getModelSlotStatus: '{get_model_slot_status_command}',
   loadModel: '{load_model_command}',
   unloadModel: '{unload_model_command}',
-  cancelModelOperation: '{cancel_model_operation_command}'
+  cancelModelOperation: '{cancel_model_operation_command}',
+  startChatStream: '{start_chat_stream_command}',
+  cancelChatStream: '{cancel_chat_stream_command}'
 }} as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -224,6 +227,68 @@ export interface UnloadModelRequest {{
 }}
 
 export type CancelModelOperationRequest = Record<string, never>;
+
+export type ChatRole = 'system' | 'user' | 'assistant';
+
+export interface ChatMessage {{
+  readonly role: ChatRole;
+  readonly text: string;
+}}
+
+export interface ChatRequest {{
+  readonly modelKey: string;
+  readonly messages: readonly ChatMessage[];
+}}
+
+export interface ChatRunHandle {{
+  readonly runId: string;
+}}
+
+export interface CancelChatStreamRequest {{
+  readonly runId: string;
+}}
+
+export type ChatFinishReason = 'stop' | 'maxOutputTokens';
+
+export interface ChatStreamEventStarted {{
+  readonly kind: 'started';
+  readonly runId: string;
+  readonly modelKey: string;
+}}
+
+export interface ChatStreamEventDelta {{
+  readonly kind: 'delta';
+  readonly runId: string;
+  readonly sequence: number;
+  readonly text: string;
+}}
+
+export interface ChatStreamEventCompleted {{
+  readonly kind: 'completed';
+  readonly runId: string;
+  readonly sequence: number;
+  readonly finishReason: ChatFinishReason;
+}}
+
+export interface ChatStreamEventCancelled {{
+  readonly kind: 'cancelled';
+  readonly runId: string;
+  readonly sequence: number;
+}}
+
+export interface ChatStreamEventFailed {{
+  readonly kind: 'failed';
+  readonly runId: string;
+  readonly sequence: number;
+  readonly error: AppError;
+}}
+
+export type ChatStreamEvent =
+  | ChatStreamEventStarted
+  | ChatStreamEventDelta
+  | ChatStreamEventCompleted
+  | ChatStreamEventCancelled
+  | ChatStreamEventFailed;
 "#,
         get_app_info_command = GET_APP_INFO_COMMAND,
         get_app_settings_command = GET_APP_SETTINGS_COMMAND,
@@ -238,7 +303,9 @@ export type CancelModelOperationRequest = Record<string, never>;
         get_model_slot_status_command = GET_MODEL_SLOT_STATUS_COMMAND,
         load_model_command = LOAD_MODEL_COMMAND,
         unload_model_command = UNLOAD_MODEL_COMMAND,
-        cancel_model_operation_command = CANCEL_MODEL_OPERATION_COMMAND
+        cancel_model_operation_command = CANCEL_MODEL_OPERATION_COMMAND,
+        start_chat_stream_command = START_CHAT_STREAM_COMMAND,
+        cancel_chat_stream_command = CANCEL_CHAT_STREAM_COMMAND
     )
 }
 
