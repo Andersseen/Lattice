@@ -1,6 +1,6 @@
 # Lattice roadmap to 1.0
 
-Engineering plan, 2026-09-06. Baseline: unpublished `0.1.0` foundation at `2e8eb7e`. Status updated 2026-09-12: `0.2` is archived, the `0.3` desktop security baseline is implemented on the active branch, `0.4` persistent settings is implemented with native GUI restart evidence pending before archive, `0.5` ModelRuntime discovery is implemented with real llmster smoke evidence pending before archive, `0.6` llmster lifecycle is implemented on the active branch with a real successful start/stop cycle and the P1 profile pending before archive, and `0.7` installed model management is implemented on the active branch with qualified-candidate confirmation and the P2 profile pending before archive (this machine's llmster installation cannot wake without a one-time GUI first run; see `docs/verification/0.6-llmster-lifecycle.md` and `docs/verification/0.7-installed-model-management.md`). Future release entries remain planned until their OpenSpec changes are accepted and verified. No dates, tags or published releases are created by this plan.
+Engineering plan, 2026-09-06. Baseline: unpublished `0.1.0` foundation at `2e8eb7e`. Status updated 2026-09-12: `0.2` is archived, the `0.3` desktop security baseline is implemented on the active branch, `0.4` persistent settings is implemented with native GUI restart evidence pending before archive, `0.5` ModelRuntime discovery is implemented with real llmster smoke evidence pending before archive, `0.6` llmster lifecycle is implemented on the active branch with a real successful start/stop cycle and the P1 profile pending before archive, `0.7` installed model management is implemented on the active branch with qualified-candidate confirmation and the P2 profile pending before archive, and `0.8` local streaming chat is implemented on the active branch (provider port, local OpenAI-compatible adapter, Tauri streaming channel, browser-simulated and native Chat UI, full automated test/build evidence) with a real llmster SSE sample and the completed P2 profile pending before archive (this machine's llmster installation cannot wake without a one-time GUI first run; see `docs/verification/0.6-llmster-lifecycle.md`, `docs/verification/0.7-installed-model-management.md` and `docs/verification/0.8-local-streaming-chat.md`). Future release entries remain planned until their OpenSpec changes are accepted and verified. No dates, tags or published releases are created by this plan.
 
 The destination is a lightweight, local-first, provider-agnostic desktop agent workspace. A small Rust agent core coordinates replaceable inference, explicit tools, portable skills, MCP, memory, Spaces and basic tasks. It does not reproduce LM Studio, Hermes, an IDE or a distributed agent platform.
 
@@ -26,7 +26,7 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 | 0.5     | Done, archive/evidence | llmster discovery through a consumed ModelRuntime boundary. |
 | 0.6     | Done, archive/evidence | Approved, owned runtime lifecycle.                          |
 | 0.7     | Done, archive/evidence | Installed local model list/load/unload.                     |
-| 0.8     | Planned                | First local streaming chat and cancellation.                |
+| 0.8     | Done, archive/evidence | First local streaming chat and cancellation.                |
 | 0.9     | Planned                | Provider-independent conversation persistence.              |
 | 0.10    | Planned                | Native secure credential provisioning.                      |
 | 0.11    | Planned                | Remote OpenAI-compatible chat.                              |
@@ -221,6 +221,8 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 
 ## 0.8 — Local streaming chat
 
+**Status:** implementation done on the active branch. The `providers` module (canonical port, local OpenAI-compatible adapter, reader/orchestrator cancellation), the Tauri streaming channel/commands, and a browser-simulated plus native Chat UI are implemented with disposable-fixture Rust tests, Vitest/Playwright coverage, and a passing native (`--no-bundle`) release build; see `docs/verification/0.8-local-streaming-chat.md`. A real llmster SSE sample and the P2 active-stream profile remain pending before archive, blocked on the same headless-daemon-wake gap 0.6/0.7 already recorded.
+
 **Objective:** stream and cancel text chat using the selected local model.
 
 **Why now:** the first inference consumer justifies a minimal provider port. **Dependencies:** 0.7.
@@ -237,9 +239,9 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 
 **Acceptance:**
 
-- [ ] Incremental text and cancel work with exactly one terminal outcome per request.
-- [ ] Stale events cannot reach a new run; crash/error frees the active slot.
-- [ ] Named chat profiles pass smoke; context/output/queue limits and P2 evidence are verified.
+- [x] Incremental text and cancel work with exactly one terminal outcome per request.
+- [x] Stale events cannot reach a new run; crash/error frees the active slot.
+- [ ] Named chat profiles pass smoke; context/output/queue limits and P2 evidence are verified. (Pending: real llmster SSE sample and P2 profile; see verification doc.)
 
 **Documentation:** `chat-streaming`, `providers` text spec, provider/streaming ADR and P2 completion.
 
@@ -803,4 +805,4 @@ Advanced learning/multi-agent/planning, Vertex/Wisp integration, extra runtimes/
 
 ## Next implementation handoff
 
-**Only 0.8 — Local streaming chat.** 0.2 is archived; 0.3, 0.4, 0.5, 0.6, and 0.7 are implemented on the active branch with their recorded evidence limits (see `docs/verification/`). Start from the accepted `local-models` change and ADR 0011. Read AGENTS, current architecture/specs, this scope and linked v1 constraints; explore actual prerequisite state (the managed model slot's owned/attached semantics, llmster's OpenAI-compatible completion endpoint); then create one OpenSpec change for `chat-streaming`/`providers` before coding. Do not implement persistence, remote providers, tools, or credentials as part of `0.8`.
+**Only 0.9 — Conversation persistence.** 0.2 is archived; 0.3, 0.4, 0.5, 0.6, 0.7, and 0.8 are implemented on the active branch with their recorded evidence limits (see `docs/verification/`). Start from the accepted `local-streaming-chat` change, ADR 0012, and 0.4's settings/migration pattern. Read AGENTS, current architecture/specs, this scope and linked v1 constraints; explore actual prerequisite state (the canonical `ChatRequest`/`ChatStreamEvent` shapes 0.8 already defines, the settings-store transactional migration pattern conversations must extend to their own schema); then create one OpenSpec change for `conversations` before coding. Do not implement remote providers, tools, credentials, or workspace scope as part of `0.9`.

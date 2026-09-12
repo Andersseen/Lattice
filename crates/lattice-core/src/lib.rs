@@ -1,6 +1,7 @@
 mod app_info;
 mod error;
 mod model_runtime;
+mod providers;
 mod settings;
 mod wire;
 
@@ -18,6 +19,12 @@ pub use model_runtime::{
     GET_MODEL_RUNTIME_STATUS_COMMAND, GET_MODEL_SLOT_STATUS_COMMAND, LOAD_MODEL_COMMAND,
     PROBE_MODEL_RUNTIME_COMMAND, SHUTDOWN_STOP_DEADLINE, START_MODEL_RUNTIME_COMMAND,
     STOP_MODEL_RUNTIME_COMMAND, UNLOAD_MODEL_COMMAND,
+};
+pub use providers::{
+    authorize_chat_request, new_chat_run_id, run_chat_stream, CancelChatStreamRequest,
+    ChatFinishReason, ChatMessage, ChatRequest, ChatRole, ChatRunHandle, ChatStreamEvent,
+    CANCEL_CHAT_STREAM_COMMAND, MAX_OUTPUT_TOKENS, MAX_PROMPT_CHARS, ORCHESTRATOR_POLL_INTERVAL,
+    START_CHAT_STREAM_COMMAND, STREAM_DEADLINE,
 };
 pub use settings::{
     AppSettings, AppearancePreference, ResetAppSettingsRequest, SettingsStore,

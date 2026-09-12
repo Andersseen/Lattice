@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 test('application loads the foundation shell', async ({ page }) => {
   await page.goto('/');
@@ -103,4 +103,58 @@ test('installed models can be loaded and unloaded in browser smoke mode', async 
 
   await expect(modelCard.getByText('None')).toBeVisible();
   await expect(modelCard.getByText('Last operation: unloaded')).toBeVisible();
+});
+
+async function loadQwenModel(page: Page): Promise<void> {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Models', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Path' }).fill('/usr/local/bin/lms');
+  await page.getByRole('button', { name: 'Configure' }).click();
+  await page.getByRole('button', { name: 'Probe' }).click();
+  await expect(page.getByText('stopped').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Start' }).click();
+  await expect(page.getByText('running').first()).toBeVisible();
+
+  const loadButton = page.getByRole('listitem').filter({ hasText: 'Qwen2.5' }).getByRole('button');
+  await expect(loadButton).toBeEnabled();
+  await loadButton.click();
+  await expect(page.locator('.model-card').getByText('owned')).toBeVisible();
+}
+
+test('a chat response streams incrementally and completes in browser smoke mode', async ({
+  page
+}) => {
+  await loadQwenModel(page);
+  await page.getByRole('link', { name: 'Chat', exact: true }).click();
+
+  await expect(page).toHaveURL(/\/chat$/);
+  await expect(page.getByRole('heading', { name: 'Chat' })).toBeVisible();
+  await expect(page.getByText('qwen/qwen2.5-0.5b-instruct')).toBeVisible();
+
+  const input = page.getByRole('textbox', { name: 'Message' });
+  await input.fill('Hello there');
+  await page.getByRole('button', { name: 'Send' }).click();
+
+  await expect(page.locator('.message.assistant .text')).toContainText('simulated', {
+    timeout: 10_000
+  });
+  await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled({ timeout: 10_000 });
+  await expect(page.locator('.message.assistant .text')).toHaveText(
+    'This is a simulated response because Lattice is running as a browser preview without the desktop shell.'
+  );
+});
+
+test('a chat response can be cancelled mid-stream in browser smoke mode', async ({ page }) => {
+  await loadQwenModel(page);
+  await page.getByRole('link', { name: 'Chat', exact: true }).click();
+
+  const input = page.getByRole('textbox', { name: 'Message' });
+  await input.fill('Hello there');
+  await page.getByRole('button', { name: 'Send' }).click();
+
+  await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+
+  await expect(page.locator('.message.assistant .status-tag')).toHaveText('Cancelled');
+  await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled();
 });

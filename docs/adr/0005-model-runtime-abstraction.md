@@ -25,3 +25,4 @@ Current LM Studio docs were checked on 2026-09-07: `lms daemon status --json` re
 - 0.5 can report missing, unsupported, stopped, running, unreachable, and unknown states without mutating runtime resources.
 - Future lifecycle work still needs its own OpenSpec proposal and must not assume that a discovered executable is owned by Lattice.
 - 0.6 lifecycle ownership decisions (start/stop, owned/attached identity) are recorded separately in ADR 0010.
+- 0.8's `Provider` transport/streaming decisions are recorded separately in ADR 0012.

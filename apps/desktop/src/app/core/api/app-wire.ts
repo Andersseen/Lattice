@@ -2,6 +2,9 @@ import type {
   AppError,
   AppInfo,
   AppSettings,
+  ChatFinishReason,
+  ChatRunHandle,
+  ChatStreamEvent,
   ModelDescriptor,
   ModelRuntimeStatus,
   ModelSlotStatus,
@@ -12,6 +15,7 @@ const SAFE_APP_INFO_ERROR = 'Lattice could not read application information.';
 const SAFE_APP_SETTINGS_ERROR = 'Lattice could not read application settings.';
 const SAFE_MODEL_RUNTIME_ERROR = 'Lattice could not read model runtime status.';
 const SAFE_MODEL_SLOT_ERROR = 'Lattice could not read model slot status.';
+const SAFE_CHAT_ERROR = 'Lattice could not start the chat response.';
 const MAX_SAFE_MESSAGE_LENGTH = 240;
 
 export function decodeAppInfo(value: unknown): AppInfo {
@@ -46,6 +50,25 @@ export function decodeModelSlotStatus(value: unknown): ModelSlotStatus {
   throw createBridgeError(SAFE_MODEL_SLOT_ERROR);
 }
 
+export function decodeChatRunHandle(value: unknown): ChatRunHandle {
+  if (isChatRunHandle(value)) {
+    return value;
+  }
+
+  throw createBridgeError(SAFE_CHAT_ERROR);
+}
+
+/**
+ * Unlike the other `decode*` functions, this never throws: a chat stream
+ * channel delivers many events over one run's lifetime, and one malformed
+ * event must not stop delivery of the ones after it (application-api spec,
+ * "Stream Events Are Decoded Defensively"). Callers treat `null` as one
+ * skippable malformed event, not a terminal failure of the run.
+ */
+export function decodeChatStreamEvent(value: unknown): ChatStreamEvent | null {
+  return isChatStreamEvent(value) ? value : null;
+}
+
 export function normalizeAppError(error: unknown, fallbackMessage = SAFE_APP_INFO_ERROR): AppError {
   if (isAppError(error)) {
     const safeError: AppError = {
@@ -77,6 +100,10 @@ export function normalizeModelRuntimeError(error: unknown): AppError {
 
 export function normalizeModelSlotError(error: unknown): AppError {
   return normalizeAppError(error, SAFE_MODEL_SLOT_ERROR);
+}
+
+export function normalizeChatError(error: unknown): AppError {
+  return normalizeAppError(error, SAFE_CHAT_ERROR);
 }
 
 function createBridgeError(message: string): AppError {
@@ -324,6 +351,48 @@ function optionalModelOperationOutcome(value: unknown): boolean {
     value === 'timedOut' ||
     value === 'failed'
   );
+}
+
+function isChatRunHandle(value: unknown): value is ChatRunHandle {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return typeof value['runId'] === 'string';
+}
+
+function isChatStreamEvent(value: unknown): value is ChatStreamEvent {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const runId = value['runId'];
+  if (typeof runId !== 'string') {
+    return false;
+  }
+
+  switch (value['kind']) {
+    case 'started':
+      return typeof value['modelKey'] === 'string';
+    case 'delta':
+      return isNonNegativeInteger(value['sequence']) && typeof value['text'] === 'string';
+    case 'completed':
+      return isNonNegativeInteger(value['sequence']) && isChatFinishReason(value['finishReason']);
+    case 'cancelled':
+      return isNonNegativeInteger(value['sequence']);
+    case 'failed':
+      return isNonNegativeInteger(value['sequence']) && isAppError(value['error']);
+    default:
+      return false;
+  }
+}
+
+function isChatFinishReason(value: unknown): value is ChatFinishReason {
+  return value === 'stop' || value === 'maxOutputTokens';
+}
+
+function isNonNegativeInteger(value: unknown): boolean {
+  return Number.isInteger(value) && Number(value) >= 0;
 }
 
 function optionalString(value: unknown): boolean {

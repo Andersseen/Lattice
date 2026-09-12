@@ -14,7 +14,9 @@ export const APP_COMMANDS = {
   getModelSlotStatus: 'get_model_slot_status',
   loadModel: 'load_model',
   unloadModel: 'unload_model',
-  cancelModelOperation: 'cancel_model_operation'
+  cancelModelOperation: 'cancel_model_operation',
+  startChatStream: 'start_chat_stream',
+  cancelChatStream: 'cancel_chat_stream'
 } as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -211,3 +213,65 @@ export interface UnloadModelRequest {
 }
 
 export type CancelModelOperationRequest = Record<string, never>;
+
+export type ChatRole = 'system' | 'user' | 'assistant';
+
+export interface ChatMessage {
+  readonly role: ChatRole;
+  readonly text: string;
+}
+
+export interface ChatRequest {
+  readonly modelKey: string;
+  readonly messages: readonly ChatMessage[];
+}
+
+export interface ChatRunHandle {
+  readonly runId: string;
+}
+
+export interface CancelChatStreamRequest {
+  readonly runId: string;
+}
+
+export type ChatFinishReason = 'stop' | 'maxOutputTokens';
+
+export interface ChatStreamEventStarted {
+  readonly kind: 'started';
+  readonly runId: string;
+  readonly modelKey: string;
+}
+
+export interface ChatStreamEventDelta {
+  readonly kind: 'delta';
+  readonly runId: string;
+  readonly sequence: number;
+  readonly text: string;
+}
+
+export interface ChatStreamEventCompleted {
+  readonly kind: 'completed';
+  readonly runId: string;
+  readonly sequence: number;
+  readonly finishReason: ChatFinishReason;
+}
+
+export interface ChatStreamEventCancelled {
+  readonly kind: 'cancelled';
+  readonly runId: string;
+  readonly sequence: number;
+}
+
+export interface ChatStreamEventFailed {
+  readonly kind: 'failed';
+  readonly runId: string;
+  readonly sequence: number;
+  readonly error: AppError;
+}
+
+export type ChatStreamEvent =
+  | ChatStreamEventStarted
+  | ChatStreamEventDelta
+  | ChatStreamEventCompleted
+  | ChatStreamEventCancelled
+  | ChatStreamEventFailed;

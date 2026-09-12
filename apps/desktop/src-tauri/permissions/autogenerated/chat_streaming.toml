@@ -1,0 +1,17 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-chat-streaming"
+description = "Enables local streaming chat commands without any pre-configured scope."
+commands.allow = [
+  "start_chat_stream",
+  "cancel_chat_stream",
+]
+
+[[permission]]
+identifier = "deny-chat-streaming"
+description = "Denies local streaming chat commands without any pre-configured scope."
+commands.deny = [
+  "start_chat_stream",
+  "cancel_chat_stream",
+]

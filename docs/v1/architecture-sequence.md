@@ -43,7 +43,7 @@ Angular → typed application API → Tauri → Rust application use cases
 
 0.5 introduces the management contract with a real read-only discovery/status consumer; it does not create unused inference traits. 0.8 introduces the provider port with the first local streaming consumer. 0.11 validates replacement using a remote endpoint. This avoids a special local-chat path that would need redesign later. Lattice does not delegate agent loops, stateful conversations, skills or MCP to llmster even if its API offers them.
 
-Current implementation status as of 2026-09-09: the 0.2 application API boundary is archived; 0.3 desktop security, 0.4 settings/local storage, 0.5 ModelRuntime discovery, and 0.6 llmster lifecycle (owned/attached start-stop) are implemented on the active roadmap branch with their recorded evidence limits. The next product boundary to add is 0.7 installed model management.
+Current implementation status as of 2026-09-12: the 0.2 application API boundary is archived; 0.3 desktop security, 0.4 settings/local storage, 0.5 ModelRuntime discovery, 0.6 llmster lifecycle (owned/attached start-stop), 0.7 installed model management, and 0.8 local streaming chat (the `Provider` boundary's first consumer) are implemented on the active roadmap branch with their recorded evidence limits. The next product boundary to add is 0.9 conversation persistence.
 
 ## Contracts that preserve portability
 
