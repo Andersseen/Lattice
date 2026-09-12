@@ -9,6 +9,7 @@ import {
 import { VoltButton } from '@voltui/components';
 
 import { ModelRuntimeStore } from '../../core/state/model-runtime.store';
+import { ModelSlotStore } from '../../core/state/model-slot.store';
 
 @Component({
   selector: 'lat-models-page',
@@ -19,6 +20,7 @@ import { ModelRuntimeStore } from '../../core/state/model-runtime.store';
 })
 export class ModelsPage {
   private readonly runtimeStore = inject(ModelRuntimeStore);
+  private readonly slotStore = inject(ModelSlotStore);
 
   protected readonly status = this.runtimeStore.status;
   protected readonly error = this.runtimeStore.error;
@@ -36,12 +38,28 @@ export class ModelsPage {
     () => this.executablePath().trim().length > 0 && !this.isSaving()
   );
 
+  protected readonly slotStatus = this.slotStore.status;
+  protected readonly slotError = this.slotStore.error;
+  protected readonly isSlotLoading = this.slotStore.isLoading;
+  protected readonly isLoadingModel = this.slotStore.isLoadingModel;
+  protected readonly isUnloading = this.slotStore.isUnloading;
+  protected readonly canLoadModel = this.slotStore.canLoad;
+  protected readonly canUnloadModel = this.slotStore.canUnload;
+  protected readonly isModelOperationPending = this.slotStore.isOperationPending;
+
   constructor() {
     effect(() => {
       const path = this.status()?.executablePath;
       if (path !== undefined) {
         this.executablePath.set(path);
       }
+    });
+
+    effect(() => {
+      // Re-read the model slot whenever runtime status changes, since an
+      // installed/loaded inventory can only be listed while running.
+      this.status();
+      void this.slotStore.load();
     });
   }
 
@@ -76,5 +94,18 @@ export class ModelsPage {
 
   protected refresh(): void {
     void this.runtimeStore.load();
+    void this.slotStore.load();
+  }
+
+  protected loadModel(modelKey: string): void {
+    void this.slotStore.loadModel(modelKey);
+  }
+
+  protected unloadModel(): void {
+    void this.slotStore.unloadModel();
+  }
+
+  protected cancelModelOperation(): void {
+    void this.slotStore.cancelOperation();
   }
 }

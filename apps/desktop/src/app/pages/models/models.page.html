@@ -124,5 +124,79 @@
       </div>
     </dl>
   </section>
+
+  <section class="model-card" aria-labelledby="installed-models-title">
+    <div>
+      <h2 id="installed-models-title">Installed models</h2>
+      @if (slotStatus(); as slot) {
+      <p>{{ slot.message }}</p>
+      } @if (slotError(); as modelError) {
+      <p role="alert">{{ modelError.message }}</p>
+      }
+    </div>
+
+    @if (isSlotLoading() && slotStatus() === null) {
+    <p class="status-text">Loading model inventory.</p>
+    } @else if (slotStatus(); as slot) { @if (slot.installed.length === 0) {
+    <p>
+      No installed models found. Use llmster's own <code>lms get</code> or the LM Studio model
+      browser to acquire one.
+    </p>
+    } @else {
+    <ul class="model-list">
+      @for (model of slot.installed; track model.modelKey) {
+      <li>
+        <div>
+          <strong>{{ model.displayName }}</strong>
+          <span>{{ model.architecture ?? 'Unknown architecture' }}</span>
+        </div>
+        <volt-button
+          type="button"
+          variant="outline"
+          size="sm"
+          [disabled]="!canLoadModel() || isModelOperationPending()"
+          (click)="loadModel(model.modelKey)"
+        >
+          {{ isLoadingModel() ? 'Loading' : 'Load' }}
+        </volt-button>
+      </li>
+      }
+    </ul>
+    }
+
+    <div class="model-details">
+      @if (slot.lastOperation; as lastModelOperation) {
+      <p>Last operation: {{ lastModelOperation }}</p>
+      }
+      <dl>
+        <div>
+          <dt>Loaded</dt>
+          <dd>{{ slot.loaded?.modelKey ?? 'None' }}</dd>
+        </div>
+        <div>
+          <dt>Ownership</dt>
+          <dd>{{ slot.ownership.state }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="actions">
+      <volt-button
+        type="button"
+        variant="outline"
+        size="md"
+        [disabled]="!canUnloadModel() || isModelOperationPending()"
+        (click)="unloadModel()"
+      >
+        {{ isUnloading() ? 'Unloading' : 'Unload' }}
+      </volt-button>
+      @if (isModelOperationPending()) {
+      <volt-button type="button" variant="outline" size="sm" (click)="cancelModelOperation()">
+        Cancel
+      </volt-button>
+      }
+    </div>
+    }
+  </section>
   } }
 </section>

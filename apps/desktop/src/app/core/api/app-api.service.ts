@@ -4,13 +4,17 @@ import {
   type AppError,
   type AppInfo,
   type AppSettings,
+  type CancelModelOperationRequest,
   type CancelModelRuntimeOperationRequest,
   type ConfigureModelRuntimeRequest,
+  type LoadModelRequest,
   type ModelRuntimeStatus,
+  type ModelSlotStatus,
   type ProbeModelRuntimeRequest,
   type ResetAppSettingsRequest,
   type StartModelRuntimeRequest,
   type StopModelRuntimeRequest,
+  type UnloadModelRequest,
   type UpdateAppSettingsRequest
 } from '@lattice/types';
 
@@ -18,8 +22,10 @@ import {
   decodeAppInfo,
   decodeAppSettings,
   decodeModelRuntimeStatus,
+  decodeModelSlotStatus,
   normalizeAppError,
   normalizeModelRuntimeError,
+  normalizeModelSlotError,
   normalizeSettingsError
 } from './app-wire';
 import { getWebSettings, resetWebSettings, updateWebSettings } from './app-settings-fallback';
@@ -32,6 +38,12 @@ import {
   startWebModelRuntime,
   stopWebModelRuntime
 } from './model-runtime-fallback';
+import {
+  cancelWebModelOperation,
+  getWebModelSlotStatus,
+  loadWebModel,
+  unloadWebModel
+} from './model-slot-fallback';
 import { isTauriRuntime } from './tauri-runtime';
 
 @Injectable({ providedIn: 'root' })
@@ -190,6 +202,69 @@ export class AppApiService {
       });
     } catch (error: unknown) {
       throw normalizeModelRuntimeError(error);
+    }
+  }
+
+  async getModelSlotStatus(): Promise<ModelSlotStatus> {
+    if (!isTauriRuntime()) {
+      return getWebModelSlotStatus();
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeModelSlotStatus(await invoke<unknown>(APP_COMMANDS.getModelSlotStatus));
+    } catch (error: unknown) {
+      throw normalizeModelSlotError(error);
+    }
+  }
+
+  async loadModel(request: LoadModelRequest): Promise<ModelSlotStatus> {
+    if (!isTauriRuntime()) {
+      return loadWebModel(request);
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeModelSlotStatus(
+        await invoke<unknown>(APP_COMMANDS.loadModel, {
+          request
+        })
+      );
+    } catch (error: unknown) {
+      throw normalizeModelSlotError(error);
+    }
+  }
+
+  async unloadModel(request: UnloadModelRequest): Promise<ModelSlotStatus> {
+    if (!isTauriRuntime()) {
+      return unloadWebModel(request);
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeModelSlotStatus(
+        await invoke<unknown>(APP_COMMANDS.unloadModel, {
+          request
+        })
+      );
+    } catch (error: unknown) {
+      throw normalizeModelSlotError(error);
+    }
+  }
+
+  async cancelModelOperation(request: CancelModelOperationRequest): Promise<void> {
+    if (!isTauriRuntime()) {
+      cancelWebModelOperation();
+      return;
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke<void>(APP_COMMANDS.cancelModelOperation, {
+        request
+      });
+    } catch (error: unknown) {
+      throw normalizeModelSlotError(error);
     }
   }
 }

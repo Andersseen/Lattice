@@ -1,6 +1,6 @@
 # Lattice roadmap to 1.0
 
-Engineering plan, 2026-09-06. Baseline: unpublished `0.1.0` foundation at `2e8eb7e`. Status updated 2026-09-09: `0.2` is archived, the `0.3` desktop security baseline is implemented on the active branch, `0.4` persistent settings is implemented with native GUI restart evidence pending before archive, `0.5` ModelRuntime discovery is implemented with real llmster smoke evidence pending before archive, and `0.6` llmster lifecycle is implemented on the active branch with a real successful start/stop cycle and the P1 profile pending before archive (this machine's llmster installation cannot wake without a one-time GUI first run; see `docs/verification/0.6-llmster-lifecycle.md`). Future release entries remain planned until their OpenSpec changes are accepted and verified. No dates, tags or published releases are created by this plan.
+Engineering plan, 2026-09-06. Baseline: unpublished `0.1.0` foundation at `2e8eb7e`. Status updated 2026-09-12: `0.2` is archived, the `0.3` desktop security baseline is implemented on the active branch, `0.4` persistent settings is implemented with native GUI restart evidence pending before archive, `0.5` ModelRuntime discovery is implemented with real llmster smoke evidence pending before archive, `0.6` llmster lifecycle is implemented on the active branch with a real successful start/stop cycle and the P1 profile pending before archive, and `0.7` installed model management is implemented on the active branch with qualified-candidate confirmation and the P2 profile pending before archive (this machine's llmster installation cannot wake without a one-time GUI first run; see `docs/verification/0.6-llmster-lifecycle.md` and `docs/verification/0.7-installed-model-management.md`). Future release entries remain planned until their OpenSpec changes are accepted and verified. No dates, tags or published releases are created by this plan.
 
 The destination is a lightweight, local-first, provider-agnostic desktop agent workspace. A small Rust agent core coordinates replaceable inference, explicit tools, portable skills, MCP, memory, Spaces and basic tasks. It does not reproduce LM Studio, Hermes, an IDE or a distributed agent platform.
 
@@ -25,7 +25,7 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 | 0.4     | Done, archive/evidence | Persistent non-secret settings.                             |
 | 0.5     | Done, archive/evidence | llmster discovery through a consumed ModelRuntime boundary. |
 | 0.6     | Done, archive/evidence | Approved, owned runtime lifecycle.                          |
-| 0.7     | Planned                | Installed local model list/load/unload.                     |
+| 0.7     | Done, archive/evidence | Installed local model list/load/unload.                     |
 | 0.8     | Planned                | First local streaming chat and cancellation.                |
 | 0.9     | Planned                | Provider-independent conversation persistence.              |
 | 0.10    | Planned                | Native secure credential provisioning.                      |
@@ -193,6 +193,8 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 
 ## 0.7 — Installed model management
 
+**Status:** implementation done on the active branch. Disposable-fixture list/load/unload/ownership/cancellation tests, OpenSpec/contract/Rust/TypeScript/web-build/E2E/native-build checks pass; real-CLI `--help` confirmation for `ls`/`ps`/`load`/`unload` and a genuine no-orphan environmental-failure path (the same headless daemon-wake gap 0.6 recorded) pass. Real `ls`/`ps` JSON field-name capture, qualified small Qwen/Gemma candidate confirmation and the P2 load/unload profile remain before archive; see `docs/verification/0.7-installed-model-management.md`.
+
 **Objective:** select and manage one installed local model.
 
 **Why now:** streaming needs known model capacity/state. **Dependencies:** 0.6.
@@ -209,9 +211,9 @@ Before each minor: explore actual prerequisite state and upstream versions → p
 
 **Acceptance:**
 
-- [ ] Inventory accurately separates installed/loaded; unload releases owned model state.
-- [ ] Conflicting load cannot evict active/external work.
-- [ ] Profile IDs/configuration, runtime version and measured load/unload evidence are recorded; missing-model guidance is actionable.
+- [x] Inventory accurately separates installed/loaded; unload releases owned model state.
+- [x] Conflicting load cannot evict active/external work.
+- [ ] Profile IDs/configuration, runtime version and measured load/unload evidence are recorded; missing-model guidance is actionable. (Pending: real catalog read and P2 profile; see verification doc.)
 
 **Documentation:** `local-models` spec, model qualification matrix, P2 load/unload record.
 
@@ -801,4 +803,4 @@ Advanced learning/multi-agent/planning, Vertex/Wisp integration, extra runtimes/
 
 ## Next implementation handoff
 
-**Only 0.7 — Installed model management.** 0.2 is archived; 0.3, 0.4, 0.5, and 0.6 are implemented on the active branch with their recorded evidence limits (see `docs/verification/`). Start from the accepted `0.6` llmster-lifecycle change and ADR 0010. Read AGENTS, current architecture/specs, this scope and linked v1 constraints; explore actual prerequisite state (owned/attached lifecycle, real llmster model-list/load/unload semantics); then create one OpenSpec change for `local-models` before coding. Do not implement chat, streaming, providers, or credentials as part of `0.7`.
+**Only 0.8 — Local streaming chat.** 0.2 is archived; 0.3, 0.4, 0.5, 0.6, and 0.7 are implemented on the active branch with their recorded evidence limits (see `docs/verification/`). Start from the accepted `local-models` change and ADR 0011. Read AGENTS, current architecture/specs, this scope and linked v1 constraints; explore actual prerequisite state (the managed model slot's owned/attached semantics, llmster's OpenAI-compatible completion endpoint); then create one OpenSpec change for `chat-streaming`/`providers` before coding. Do not implement persistence, remote providers, tools, or credentials as part of `0.8`.

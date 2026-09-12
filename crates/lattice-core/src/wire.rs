@@ -1,8 +1,9 @@
 use crate::app_info::GET_APP_INFO_COMMAND;
 use crate::model_runtime::{
-    CANCEL_MODEL_RUNTIME_OPERATION_COMMAND, CONFIGURE_MODEL_RUNTIME_COMMAND,
-    GET_MODEL_RUNTIME_STATUS_COMMAND, PROBE_MODEL_RUNTIME_COMMAND, START_MODEL_RUNTIME_COMMAND,
-    STOP_MODEL_RUNTIME_COMMAND,
+    CANCEL_MODEL_OPERATION_COMMAND, CANCEL_MODEL_RUNTIME_OPERATION_COMMAND,
+    CONFIGURE_MODEL_RUNTIME_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND,
+    GET_MODEL_SLOT_STATUS_COMMAND, LOAD_MODEL_COMMAND, PROBE_MODEL_RUNTIME_COMMAND,
+    START_MODEL_RUNTIME_COMMAND, STOP_MODEL_RUNTIME_COMMAND, UNLOAD_MODEL_COMMAND,
 };
 use crate::settings::{
     GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
@@ -22,7 +23,11 @@ export const APP_COMMANDS = {{
   probeModelRuntime: '{probe_model_runtime_command}',
   startModelRuntime: '{start_model_runtime_command}',
   stopModelRuntime: '{stop_model_runtime_command}',
-  cancelModelRuntimeOperation: '{cancel_model_runtime_operation_command}'
+  cancelModelRuntimeOperation: '{cancel_model_runtime_operation_command}',
+  getModelSlotStatus: '{get_model_slot_status_command}',
+  loadModel: '{load_model_command}',
+  unloadModel: '{unload_model_command}',
+  cancelModelOperation: '{cancel_model_operation_command}'
 }} as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -45,6 +50,16 @@ export type RuntimeOperationOutcome =
   | 'alreadyRunning'
   | 'stopped'
   | 'alreadyStopped'
+  | 'refused'
+  | 'cancelled'
+  | 'timedOut'
+  | 'failed';
+
+export type ModelOperationOutcome =
+  | 'loaded'
+  | 'alreadyLoaded'
+  | 'unloaded'
+  | 'alreadyUnloaded'
   | 'refused'
   | 'cancelled'
   | 'timedOut'
@@ -151,6 +166,64 @@ export interface StopModelRuntimeRequest {{
 }}
 
 export type CancelModelRuntimeOperationRequest = Record<string, never>;
+
+export interface ModelDescriptor {{
+  readonly modelKey: string;
+  readonly displayName: string;
+  readonly architecture?: string;
+  readonly isLlm: boolean;
+  readonly sizeBytes?: number;
+}}
+
+export interface LoadedModelObservation {{
+  readonly identifier: string;
+  readonly modelKey: string;
+  readonly architecture?: string;
+  readonly sizeBytes?: number;
+}}
+
+export interface ModelLoadOwnershipOwned {{
+  readonly state: 'owned';
+  readonly identifier: string;
+  readonly modelKey: string;
+  readonly loadedSinceUnixSeconds: number;
+}}
+
+export interface ModelLoadOwnershipAttached {{
+  readonly state: 'attached';
+  readonly identifier: string;
+  readonly modelKey: string;
+}}
+
+export interface ModelLoadOwnershipUnknown {{
+  readonly state: 'unknown';
+}}
+
+export type ModelLoadOwnership =
+  ModelLoadOwnershipOwned | ModelLoadOwnershipAttached | ModelLoadOwnershipUnknown;
+
+export interface ModelSlotStatus {{
+  readonly revision: number;
+  readonly installed: readonly ModelDescriptor[];
+  readonly loaded?: LoadedModelObservation;
+  readonly ownership: ModelLoadOwnership;
+  readonly lastOperation?: ModelOperationOutcome;
+  readonly lastCheckedUnixSeconds?: number;
+  readonly message: string;
+}}
+
+export type GetModelSlotStatusRequest = Record<string, never>;
+
+export interface LoadModelRequest {{
+  readonly expectedRevision: number;
+  readonly modelKey: string;
+}}
+
+export interface UnloadModelRequest {{
+  readonly expectedRevision: number;
+}}
+
+export type CancelModelOperationRequest = Record<string, never>;
 "#,
         get_app_info_command = GET_APP_INFO_COMMAND,
         get_app_settings_command = GET_APP_SETTINGS_COMMAND,
@@ -161,7 +234,11 @@ export type CancelModelRuntimeOperationRequest = Record<string, never>;
         probe_model_runtime_command = PROBE_MODEL_RUNTIME_COMMAND,
         start_model_runtime_command = START_MODEL_RUNTIME_COMMAND,
         stop_model_runtime_command = STOP_MODEL_RUNTIME_COMMAND,
-        cancel_model_runtime_operation_command = CANCEL_MODEL_RUNTIME_OPERATION_COMMAND
+        cancel_model_runtime_operation_command = CANCEL_MODEL_RUNTIME_OPERATION_COMMAND,
+        get_model_slot_status_command = GET_MODEL_SLOT_STATUS_COMMAND,
+        load_model_command = LOAD_MODEL_COMMAND,
+        unload_model_command = UNLOAD_MODEL_COMMAND,
+        cancel_model_operation_command = CANCEL_MODEL_OPERATION_COMMAND
     )
 }
 
