@@ -2,7 +2,7 @@ mod app_info;
 mod error;
 mod model_runtime;
 mod providers;
-mod settings;
+mod storage;
 mod wire;
 
 pub use app_info::{app_info, AppInfo, AppRuntime, BuildProfile, GET_APP_INFO_COMMAND};
@@ -26,7 +26,7 @@ pub use providers::{
     CANCEL_CHAT_STREAM_COMMAND, MAX_OUTPUT_TOKENS, MAX_PROMPT_CHARS, ORCHESTRATOR_POLL_INTERVAL,
     START_CHAT_STREAM_COMMAND, STREAM_DEADLINE,
 };
-pub use settings::{
+pub use storage::{
     AppSettings, AppearancePreference, ResetAppSettingsRequest, SettingsStore,
     UpdateAppSettingsRequest, GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND,
     UPDATE_APP_SETTINGS_COMMAND,
