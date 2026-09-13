@@ -120,6 +120,60 @@ impl AppError {
             correlation_id: None,
         }
     }
+
+    pub const fn conversation_not_found(message: &'static str) -> Self {
+        Self {
+            code: "conversation.not_found",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn conversation_conflict(message: &'static str) -> Self {
+        Self {
+            code: "conversation.conflict",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn credential_cancelled(message: &'static str) -> Self {
+        Self {
+            code: "credential.cancelled",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn credential_not_found(message: &'static str) -> Self {
+        Self {
+            code: "credential.not_found",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn credential_unavailable(message: &'static str) -> Self {
+        Self {
+            code: "credential.unavailable",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn credential_unsupported(message: &'static str) -> Self {
+        Self {
+            code: "credential.unsupported",
+            message,
+            recoverable: false,
+            correlation_id: None,
+        }
+    }
 }
 
 #[cfg(test)]

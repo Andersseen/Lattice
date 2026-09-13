@@ -139,6 +139,80 @@ input[aria-invalid='true'] {
   gap: 0.75rem;
 }
 
+.credentials-group {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  min-height: 0;
+  gap: 1rem;
+}
+
+.credential-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.text-field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.text-field span {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.credential-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.credential-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-surface-strong);
+}
+
+.credential-card .summary {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.credential-card .meta {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  text-transform: capitalize;
+}
+
+.credential-card .actions {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  gap: 0.5rem;
+}
+
+@media (max-width: 48rem) {
+  .credential-form {
+    grid-template-columns: 1fr;
+  }
+
+  .credential-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 @media (max-width: 48rem) {
   .setting-group,
   .actions,

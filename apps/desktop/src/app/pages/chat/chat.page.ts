@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { VoltButton } from '@voltui/components';
 
 import { ChatStore } from '../../core/state/chat.store';
@@ -12,17 +13,39 @@ import { ChatStore } from '../../core/state/chat.store';
 })
 export class ChatPage {
   private readonly chatStore = inject(ChatStore);
+  private readonly router = inject(Router);
+
+  /** Bound from the `?conversationId=` query param (see `withComponentInputBinding`). */
+  readonly conversationId = input<string>();
 
   protected readonly transcript = this.chatStore.transcript;
   protected readonly error = this.chatStore.error;
   protected readonly isStreaming = this.chatStore.isStreaming;
+  protected readonly isLoadingConversation = this.chatStore.isLoadingConversation;
   protected readonly loadedModelKey = this.chatStore.loadedModelKey;
   protected readonly canSend = this.chatStore.canSend;
   protected readonly draft = signal('');
 
+  constructor() {
+    effect(() => {
+      const id = this.conversationId();
+      if (id !== undefined && id !== this.chatStore.conversationId()) {
+        void this.chatStore.loadConversation(id);
+      }
+    });
+  }
+
+  protected newChat(): void {
+    this.chatStore.startNewConversation();
+    this.draft.set('');
+    // Clears `?conversationId=` too, so the reopen effect below does not
+    // immediately reload the conversation this action just left.
+    void this.router.navigate(['/chat']);
+  }
+
   protected setDraft(event: Event): void {
-    const input = event.target as HTMLTextAreaElement;
-    this.draft.set(input.value);
+    const target = event.target as HTMLTextAreaElement;
+    this.draft.set(target.value);
   }
 
   protected send(): void {

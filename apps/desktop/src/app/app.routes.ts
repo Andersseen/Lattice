@@ -18,6 +18,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/chat/chat.page').then((module) => module.ChatPage)
   },
   {
+    path: 'history',
+    loadComponent: () => import('./pages/history/history.page').then((module) => module.HistoryPage)
+  },
+  {
     path: 'settings',
     loadComponent: () =>
       import('./pages/settings/settings.page').then((module) => module.SettingsPage)

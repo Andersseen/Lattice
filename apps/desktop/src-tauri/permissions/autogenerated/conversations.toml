@@ -1,0 +1,19 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-conversations"
+description = "Enables conversation persistence commands without any pre-configured scope."
+commands.allow = [
+  "list_conversations",
+  "get_conversation",
+  "delete_conversation",
+]
+
+[[permission]]
+identifier = "deny-conversations"
+description = "Denies conversation persistence commands without any pre-configured scope."
+commands.deny = [
+  "list_conversations",
+  "get_conversation",
+  "delete_conversation",
+]

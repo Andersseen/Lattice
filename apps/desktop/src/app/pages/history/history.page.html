@@ -1,0 +1,53 @@
+<section class="history" aria-labelledby="history-title">
+  <div class="heading">
+    <p class="eyebrow">Conversation persistence</p>
+    <h1 id="history-title">History</h1>
+  </div>
+
+  @if (error(); as historyError) {
+  <div class="notice" role="alert">
+    <p>{{ historyError.message }}</p>
+    <volt-button type="button" variant="outline" size="sm" (click)="refresh()">Retry</volt-button>
+  </div>
+  } @if (isLoading() && conversations().length === 0) {
+  <p class="status-text">Loading conversations.</p>
+  } @else if (conversations().length === 0) {
+  <p class="status-text">No conversations yet. Start one from the Chat page.</p>
+  } @else {
+  <ul class="conversation-list">
+    @for (conversation of conversations(); track conversation.id) {
+    <li class="conversation-card" (click)="open(conversation.id)">
+      <div class="summary">
+        <strong>{{ conversation.title }}</strong>
+        <span class="meta">
+          {{ conversation.messageCount }} message{{ conversation.messageCount === 1 ? '' : 's' }}
+          @if (conversation.lastStatus && conversation.lastStatus !== 'complete') { ·
+          <span class="status-tag">{{ conversation.lastStatus }}</span>
+          }
+        </span>
+      </div>
+      <volt-button
+        type="button"
+        variant="outline"
+        size="sm"
+        [disabled]="deletingId() === conversation.id"
+        (click)="delete(conversation.id, conversation.title, $event)"
+      >
+        {{ deletingId() === conversation.id ? 'Deleting' : 'Delete' }}
+      </volt-button>
+    </li>
+    }
+  </ul>
+
+  @if (hasMore()) {
+  <volt-button
+    type="button"
+    variant="outline"
+    size="md"
+    [disabled]="isLoading()"
+    (click)="loadMore()"
+  >
+    {{ isLoading() ? 'Loading' : 'Load more' }}
+  </volt-button>
+  } }
+</section>

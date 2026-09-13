@@ -5,6 +5,15 @@ import type {
   ChatFinishReason,
   ChatRunHandle,
   ChatStreamEvent,
+  Conversation,
+  ConversationCursor,
+  ConversationDetail,
+  ConversationSummary,
+  CredentialAvailability,
+  CredentialRef,
+  GenerationStatus,
+  ListConversationsResponse,
+  Message,
   ModelDescriptor,
   ModelRuntimeStatus,
   ModelSlotStatus,
@@ -16,6 +25,8 @@ const SAFE_APP_SETTINGS_ERROR = 'Lattice could not read application settings.';
 const SAFE_MODEL_RUNTIME_ERROR = 'Lattice could not read model runtime status.';
 const SAFE_MODEL_SLOT_ERROR = 'Lattice could not read model slot status.';
 const SAFE_CHAT_ERROR = 'Lattice could not start the chat response.';
+const SAFE_CONVERSATION_ERROR = 'Lattice could not read this conversation.';
+const SAFE_CREDENTIAL_ERROR = 'Lattice could not read this credential.';
 const MAX_SAFE_MESSAGE_LENGTH = 240;
 
 export function decodeAppInfo(value: unknown): AppInfo {
@@ -56,6 +67,38 @@ export function decodeChatRunHandle(value: unknown): ChatRunHandle {
   }
 
   throw createBridgeError(SAFE_CHAT_ERROR);
+}
+
+export function decodeListConversationsResponse(value: unknown): ListConversationsResponse {
+  if (isListConversationsResponse(value)) {
+    return value;
+  }
+
+  throw createBridgeError(SAFE_CONVERSATION_ERROR);
+}
+
+export function decodeConversationDetail(value: unknown): ConversationDetail {
+  if (isConversationDetail(value)) {
+    return value;
+  }
+
+  throw createBridgeError(SAFE_CONVERSATION_ERROR);
+}
+
+export function decodeCredentialRefs(value: unknown): readonly CredentialRef[] {
+  if (Array.isArray(value) && value.every(isCredentialRef)) {
+    return value;
+  }
+
+  throw createBridgeError(SAFE_CREDENTIAL_ERROR);
+}
+
+export function decodeCredentialRef(value: unknown): CredentialRef {
+  if (isCredentialRef(value)) {
+    return value;
+  }
+
+  throw createBridgeError(SAFE_CREDENTIAL_ERROR);
 }
 
 /**
@@ -104,6 +147,14 @@ export function normalizeModelSlotError(error: unknown): AppError {
 
 export function normalizeChatError(error: unknown): AppError {
   return normalizeAppError(error, SAFE_CHAT_ERROR);
+}
+
+export function normalizeConversationError(error: unknown): AppError {
+  return normalizeAppError(error, SAFE_CONVERSATION_ERROR);
+}
+
+export function normalizeCredentialError(error: unknown): AppError {
+  return normalizeAppError(error, SAFE_CREDENTIAL_ERROR);
 }
 
 function createBridgeError(message: string): AppError {
@@ -358,7 +409,130 @@ function isChatRunHandle(value: unknown): value is ChatRunHandle {
     return false;
   }
 
-  return typeof value['runId'] === 'string';
+  return typeof value['runId'] === 'string' && typeof value['conversationId'] === 'string';
+}
+
+function isGenerationStatus(value: unknown): value is GenerationStatus {
+  return (
+    value === 'complete' ||
+    value === 'streaming' ||
+    value === 'cancelled' ||
+    value === 'failed' ||
+    value === 'interrupted'
+  );
+}
+
+function optionalGenerationStatus(value: unknown): boolean {
+  return value === undefined || isGenerationStatus(value);
+}
+
+function isMessage(value: unknown): value is Message {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value['id'] === 'string' &&
+    typeof value['conversationId'] === 'string' &&
+    isNonNegativeInteger(value['sequence']) &&
+    isChatRoleValue(value['role']) &&
+    typeof value['text'] === 'string' &&
+    isGenerationStatus(value['status']) &&
+    optionalString(value['providerKey']) &&
+    optionalString(value['modelKey']) &&
+    optionalString(value['errorMessage']) &&
+    isNonNegativeInteger(value['createdAtUnixSeconds']) &&
+    isNonNegativeInteger(value['updatedAtUnixSeconds'])
+  );
+}
+
+function isChatRoleValue(value: unknown): boolean {
+  return value === 'system' || value === 'user' || value === 'assistant';
+}
+
+function isConversation(value: unknown): value is Conversation {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value['id'] === 'string' &&
+    typeof value['title'] === 'string' &&
+    isNonNegativeInteger(value['createdAtUnixSeconds']) &&
+    isNonNegativeInteger(value['updatedAtUnixSeconds'])
+  );
+}
+
+function isConversationSummary(value: unknown): value is ConversationSummary {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value['id'] === 'string' &&
+    typeof value['title'] === 'string' &&
+    isNonNegativeInteger(value['updatedAtUnixSeconds']) &&
+    isNonNegativeInteger(value['messageCount']) &&
+    optionalGenerationStatus(value['lastStatus'])
+  );
+}
+
+function isConversationCursor(value: unknown): value is ConversationCursor {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return isNonNegativeInteger(value['updatedAtUnixSeconds']) && typeof value['id'] === 'string';
+}
+
+function optionalConversationCursor(value: unknown): boolean {
+  return value === undefined || isConversationCursor(value);
+}
+
+function isListConversationsResponse(value: unknown): value is ListConversationsResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    Array.isArray(value['conversations']) &&
+    value['conversations'].every(isConversationSummary) &&
+    optionalConversationCursor(value['nextBefore'])
+  );
+}
+
+function isConversationDetail(value: unknown): value is ConversationDetail {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isConversation(value['conversation']) &&
+    Array.isArray(value['messages']) &&
+    value['messages'].every(isMessage) &&
+    typeof value['hasMoreBefore'] === 'boolean'
+  );
+}
+
+function isCredentialRef(value: unknown): value is CredentialRef {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value['id'] === 'string' &&
+    typeof value['label'] === 'string' &&
+    typeof value['providerKey'] === 'string' &&
+    isCredentialAvailability(value['availability']) &&
+    isNonNegativeInteger(value['createdAtUnixSeconds']) &&
+    isNonNegativeInteger(value['updatedAtUnixSeconds'])
+  );
+}
+
+function isCredentialAvailability(value: unknown): value is CredentialAvailability {
+  return (
+    value === 'available' || value === 'locked' || value === 'missing' || value === 'unsupported'
+  );
 }
 
 function isChatStreamEvent(value: unknown): value is ChatStreamEvent {

@@ -34,6 +34,11 @@ pub struct ChatRequest {
 pub struct ChatRunHandle {
     pub run_id: String, // uuid v4, reusing the already-resolved `uuid` crate (see "Dependency admission")
 }
+// Amended by 0.9 (`conversation-persistence`, still open at the time of this note):
+// `ChatRunHandle` gains `conversation_id: String`, and the Tauri command's request
+// becomes `StartChatStreamRequest { conversation_id: Option<String>, chat: ChatRequest }`.
+// `ChatRequest`/`ChatStreamEvent` above are unchanged — see that change's design.md
+// "Amendment to 0.8" for the full rationale.
 
 pub struct CancelChatStreamRequest {
     pub run_id: String, // must match the currently active run; otherwise a no-op response, never an error
@@ -51,7 +56,7 @@ pub enum ChatStreamEvent {
 }
 ```
 
-`start_chat_stream(request: ChatRequest, channel: tauri::ipc::Channel<ChatStreamEvent>, state) -> Result<ChatRunHandle, AppError>` is a plain synchronous `#[tauri::command] fn`, matching every existing command — no async runtime is introduced anywhere in the workspace by this change. It performs one fast, non-mutating precondition check (current model slot ownership, read through the existing settings-store lock exactly like `load_model`/`unload_model` already do), assigns a run ID, spawns one `std::thread` that owns the HTTP call and pushes events onto `channel`, and returns the handle immediately — before the thread produces its first byte, so the frontend always has the channel bound before any event can arrive. `cancel_chat_stream` only ever sets a shared flag and returns; it never blocks on the streaming thread.
+`start_chat_stream(request: ChatRequest, channel: tauri::ipc::Channel<ChatStreamEvent>, state) -> Result<ChatRunHandle, AppError>` (request type amended to `StartChatStreamRequest` by 0.9, above) is a plain synchronous `#[tauri::command] fn`, matching every existing command — no async runtime is introduced anywhere in the workspace by this change. It performs one fast, non-mutating precondition check (current model slot ownership, read through the existing settings-store lock exactly like `load_model`/`unload_model` already do), assigns a run ID, spawns one `std::thread` that owns the HTTP call and pushes events onto `channel`, and returns the handle immediately — before the thread produces its first byte, so the frontend always has the channel bound before any event can arrive. `cancel_chat_stream` only ever sets a shared flag and returns; it never blocks on the streaming thread.
 
 `ChatMessage.role`/`text` and `ChatRequest.model_key` carry no llmster field (no `logprobs`, no vendor sampling knob); `local_openai.rs` fills in the adapter's own fixed internal sampling defaults when building the wire request, per the non-goal on sampling-parameter UI.
 

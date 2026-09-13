@@ -2,10 +2,13 @@ use lattice_core::{
     app_info, authorize_chat_request, new_chat_run_id, run_chat_stream, AppError, AppInfo,
     AppSettings, CancelChatStreamRequest, CancelModelOperationRequest,
     CancelModelRuntimeOperationRequest, ChatRequest, ChatRunHandle, ChatStreamEvent,
-    ConfigureModelRuntimeRequest, GetModelSlotStatusRequest, LoadModelRequest, ModelRuntimeStatus,
-    ModelSlotStatus, ProbeModelRuntimeRequest, ResetAppSettingsRequest, SettingsStore,
-    StartModelRuntimeRequest, StopModelRuntimeRequest, UnloadModelRequest,
-    UpdateAppSettingsRequest,
+    ConfigureModelRuntimeRequest, ConversationDetail, ConversationStore, CreateCredentialRequest,
+    CredentialRef, CredentialStore, DeleteConversationRequest, DeleteCredentialRequest,
+    GenerationStatus, GetConversationRequest, GetModelSlotStatusRequest, ListConversationsRequest,
+    ListConversationsResponse, LoadModelRequest, ModelRuntimeStatus, ModelSlotStatus,
+    ProbeModelRuntimeRequest, ReplaceCredentialRequest, ResetAppSettingsRequest, SettingsStore,
+    StartChatStreamRequest, StartModelRuntimeRequest, StopModelRuntimeRequest, UnloadModelRequest,
+    UpdateAppSettingsRequest, CHECKPOINT_DELTA_BATCH, CHECKPOINT_MIN_INTERVAL,
 };
 use std::{
     path::PathBuf,
@@ -14,6 +17,7 @@ use std::{
         Arc, Mutex,
     },
     thread,
+    time::Instant,
 };
 use tauri::Manager;
 
@@ -22,17 +26,25 @@ const SETTINGS_DATABASE_FILE: &str = "lattice.sqlite3";
 
 struct DesktopState {
     settings: Mutex<SettingsStore>,
+    conversations: Mutex<ConversationStore>,
+    credentials: Mutex<CredentialStore>,
     runtime_operation_cancelled: Arc<AtomicBool>,
     model_operation_cancelled: Arc<AtomicBool>,
     active_chat_run: Mutex<Option<ActiveChatRun>>,
 }
 
-/// One globally active chat run's identity and shared cancellation flag,
-/// mirroring `runtime_operation_cancelled`/`model_operation_cancelled`'s
-/// existing pattern but keyed by run so a stale/unknown `run_id` passed to
+/// One globally active chat run's identity, the conversation it belongs
+/// to, and its shared cancellation flag, mirroring
+/// `runtime_operation_cancelled`/`model_operation_cancelled`'s existing
+/// pattern but keyed by run so a stale/unknown `run_id` passed to
 /// `cancel_chat_stream` is a no-op rather than cancelling the wrong run.
+/// `conversation_id` starts empty for the brief window between reserving
+/// this slot and `begin_or_continue` resolving the real ID (see
+/// `start_chat_stream`); an empty string never matches a real conversation
+/// ID, so `delete_conversation`'s conflict check stays correct throughout.
 struct ActiveChatRun {
     run_id: String,
+    conversation_id: String,
     cancel: Arc<AtomicBool>,
 }
 
@@ -176,17 +188,21 @@ fn cancel_model_operation(
 }
 
 /// Reserves the single global chat-run slot, checks the model lease and
-/// runtime endpoint, then spawns one orchestrator thread that runs
-/// `run_chat_stream` and forwards every event through `channel`. Returns
-/// as soon as the slot is reserved and preconditions pass — before the
-/// spawned thread produces its first event — so the frontend's channel is
-/// always bound before any event can arrive. See design.md's "Model lease
-/// and run ownership" and "Stream lifecycle, limits and cancellation".
+/// runtime endpoint, resolves/creates the conversation and persists its new
+/// message(s), starts the streaming assistant message row, then spawns one
+/// orchestrator thread that runs `run_chat_stream` and forwards every event
+/// through `channel` while also checkpointing it into conversation storage.
+/// Returns as soon as the slot is reserved and preconditions pass — before
+/// the spawned thread produces its first event — so the frontend's channel
+/// is always bound before any event can arrive. See design.md's "Model
+/// lease and run ownership" and "Stream lifecycle, limits and cancellation"
+/// (0.8), and `conversation-persistence`'s design.md "Checkpointing and
+/// message persistence" (0.9).
 #[tauri::command]
 fn start_chat_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, DesktopState>,
-    request: ChatRequest,
+    request: StartChatStreamRequest,
     channel: tauri::ipc::Channel<ChatStreamEvent>,
 ) -> Result<ChatRunHandle, AppError> {
     let run_id = new_chat_run_id();
@@ -201,16 +217,27 @@ fn start_chat_stream(
         }
         *active_chat_run = Some(ActiveChatRun {
             run_id: run_id.clone(),
+            conversation_id: String::new(),
             cancel: cancel.clone(),
         });
     }
 
-    match begin_chat_stream(&state, &request) {
-        Ok(endpoint) => {
+    match begin_or_start_chat_stream(&state, &request) {
+        Ok((endpoint, conversation_id, message_id)) => {
+            if let Ok(mut active_chat_run) = state.active_chat_run.lock() {
+                if let Some(active) = active_chat_run.as_mut() {
+                    if active.run_id == run_id {
+                        active.conversation_id.clone_from(&conversation_id);
+                    }
+                }
+            }
+
             let handle = ChatRunHandle {
                 run_id: run_id.clone(),
+                conversation_id: conversation_id.clone(),
             };
             let guard_run_id = run_id.clone();
+            let checkpoint_app = app.clone();
             thread::spawn(move || {
                 // Cleared on every exit path of this closure, including an
                 // unexpected panic unwinding through it: `Drop` runs during
@@ -220,7 +247,9 @@ fn start_chat_stream(
                     app,
                     run_id: guard_run_id,
                 };
-                run_chat_stream(&endpoint, run_id, request, &cancel, |event| {
+                let mut checkpoint = ChatCheckpointSink::new(checkpoint_app, message_id);
+                run_chat_stream(&endpoint, run_id, request.chat, &cancel, move |event| {
+                    checkpoint.observe(&event);
                     let _ = channel.send(event);
                 });
             });
@@ -230,6 +259,103 @@ fn start_chat_stream(
             clear_active_chat_run(&state, &run_id);
             Err(error)
         }
+    }
+}
+
+/// Checks preconditions exactly as 0.8's `begin_chat_stream` did, then (only
+/// once they pass) persists the request's new trailing message(s) against
+/// `conversation_id` — creating a new conversation when it is `None` — and
+/// starts the empty `streaming` assistant message row. No conversation or
+/// message is ever written for a request that fails its preconditions.
+fn begin_or_start_chat_stream(
+    state: &tauri::State<'_, DesktopState>,
+    request: &StartChatStreamRequest,
+) -> Result<(String, String, String), AppError> {
+    let endpoint = begin_chat_stream(state, &request.chat)?;
+
+    let conversation_id = with_conversation_store(state, |store| {
+        store.begin_or_continue(request.conversation_id.as_deref(), &request.chat.messages)
+    })?;
+    let message_id = with_conversation_store(state, |store| {
+        store.start_assistant_message(&conversation_id, &request.chat.model_key)
+    })?;
+
+    Ok((endpoint, conversation_id, message_id))
+}
+
+/// Accumulates a streaming assistant reply and checkpoints it into
+/// conversation storage at bounded intervals (never per token), always
+/// flushing synchronously on the run's terminal event. Runs on the
+/// orchestrator thread `start_chat_stream` spawns, so it reaches managed
+/// state through a cloned `AppHandle` rather than a borrowed `tauri::State`
+/// — the same pattern `ActiveChatRunGuard`/`stop_owned_runtime_before_exit`
+/// already use to touch `DesktopState` from outside a command call.
+struct ChatCheckpointSink {
+    app: tauri::AppHandle,
+    message_id: String,
+    accumulated_text: String,
+    deltas_since_checkpoint: u32,
+    last_checkpoint_at: Instant,
+}
+
+impl ChatCheckpointSink {
+    fn new(app: tauri::AppHandle, message_id: String) -> Self {
+        Self {
+            app,
+            message_id,
+            accumulated_text: String::new(),
+            deltas_since_checkpoint: 0,
+            last_checkpoint_at: Instant::now(),
+        }
+    }
+
+    fn observe(&mut self, event: &ChatStreamEvent) {
+        match event {
+            ChatStreamEvent::Started { .. } => {}
+            ChatStreamEvent::Delta { text, .. } => {
+                self.accumulated_text.push_str(text);
+                self.deltas_since_checkpoint += 1;
+                if self.deltas_since_checkpoint >= CHECKPOINT_DELTA_BATCH
+                    || self.last_checkpoint_at.elapsed() >= CHECKPOINT_MIN_INTERVAL
+                {
+                    self.checkpoint();
+                }
+            }
+            ChatStreamEvent::Completed { .. } => self.finalize(GenerationStatus::Complete, None),
+            ChatStreamEvent::Cancelled { .. } => self.finalize(GenerationStatus::Cancelled, None),
+            ChatStreamEvent::Failed { error, .. } => {
+                self.finalize(GenerationStatus::Failed, Some(error.message));
+            }
+        }
+    }
+
+    fn checkpoint(&mut self) {
+        self.deltas_since_checkpoint = 0;
+        self.last_checkpoint_at = Instant::now();
+        let Some(state) = self.app.try_state::<DesktopState>() else {
+            return;
+        };
+        let Ok(store) = state.conversations.lock() else {
+            return;
+        };
+        let _ = store.checkpoint_assistant_message(&self.message_id, &self.accumulated_text);
+    }
+
+    /// Always synchronous, regardless of the last checkpoint's timing — the
+    /// terminal write is never itself batched or skipped.
+    fn finalize(&mut self, status: GenerationStatus, error_message: Option<&'static str>) {
+        let Some(state) = self.app.try_state::<DesktopState>() else {
+            return;
+        };
+        let Ok(mut store) = state.conversations.lock() else {
+            return;
+        };
+        let _ = store.finalize_assistant_message(
+            &self.message_id,
+            &self.accumulated_text,
+            status,
+            error_message,
+        );
     }
 }
 
@@ -301,6 +427,78 @@ fn cancel_chat_stream(
     Ok(())
 }
 
+#[tauri::command]
+fn list_conversations(
+    state: tauri::State<'_, DesktopState>,
+    request: ListConversationsRequest,
+) -> Result<ListConversationsResponse, AppError> {
+    with_conversation_store(&state, |store| store.list(request))
+}
+
+#[tauri::command]
+fn get_conversation(
+    state: tauri::State<'_, DesktopState>,
+    request: GetConversationRequest,
+) -> Result<ConversationDetail, AppError> {
+    with_conversation_store(&state, |store| store.get(request))
+}
+
+/// Refuses the delete without touching storage when `conversation_id`
+/// names the conversation currently streaming — the one case a deleted
+/// conversation could otherwise vanish out from under an in-flight write.
+#[tauri::command]
+fn delete_conversation(
+    state: tauri::State<'_, DesktopState>,
+    request: DeleteConversationRequest,
+) -> Result<(), AppError> {
+    let active_conversation_id = state
+        .active_chat_run
+        .lock()
+        .map_err(|_| AppError::storage_unavailable("Lattice could not access chat run state."))?
+        .as_ref()
+        .map(|active| active.conversation_id.clone());
+
+    if active_conversation_id.as_deref() == Some(request.conversation_id.as_str()) {
+        return Err(AppError::conversation_conflict(
+            "Cancel the active chat before deleting this conversation.",
+        ));
+    }
+
+    with_conversation_store(&state, |store| store.delete(request))
+}
+
+#[tauri::command]
+fn list_credentials(state: tauri::State<'_, DesktopState>) -> Result<Vec<CredentialRef>, AppError> {
+    with_credential_store(&state, |store| store.list())
+}
+
+/// Blocking, bounded by the native prompt's own ~125s timeout — no new
+/// threading model, matching how `configure_model_runtime`/`probe_model_runtime`
+/// already block synchronously on a bounded subprocess call.
+#[tauri::command]
+fn create_credential(
+    state: tauri::State<'_, DesktopState>,
+    request: CreateCredentialRequest,
+) -> Result<CredentialRef, AppError> {
+    with_credential_store(&state, |store| store.create(request))
+}
+
+#[tauri::command]
+fn replace_credential(
+    state: tauri::State<'_, DesktopState>,
+    request: ReplaceCredentialRequest,
+) -> Result<CredentialRef, AppError> {
+    with_credential_store(&state, |store| store.replace(request))
+}
+
+#[tauri::command]
+fn delete_credential(
+    state: tauri::State<'_, DesktopState>,
+    request: DeleteCredentialRequest,
+) -> Result<(), AppError> {
+    with_credential_store(&state, |store| store.delete(request))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if let Err(error) = run_desktop_shell() {
@@ -312,9 +510,23 @@ fn run_desktop_shell() -> Result<(), tauri::Error> {
     let app = tauri::Builder::default()
         .setup(|app| {
             let settings_path = settings_database_path(app)?;
-            let settings = SettingsStore::open(settings_path)?;
+            let settings = SettingsStore::open(&settings_path)?;
+            // Same file as `settings` above, per `ConversationStore`'s own
+            // module doc comment: a second, independent connection, not a
+            // second database. Opened after `settings` so the migration
+            // cascade (schema 4 -> 5) runs exactly once, from whichever
+            // store opens first; this one then only takes the existing
+            // "schema already current" read-validation branch.
+            let conversations = ConversationStore::open(&settings_path)?;
+            // Same file again, third independent connection, same reason —
+            // see `CredentialStore`'s own module doc comment. Only
+            // reference metadata lives in this file; the secret itself
+            // never does (see `credentials`'s module doc comment).
+            let credentials = CredentialStore::open(&settings_path)?;
             app.manage(DesktopState {
                 settings: Mutex::new(settings),
+                conversations: Mutex::new(conversations),
+                credentials: Mutex::new(credentials),
                 runtime_operation_cancelled: Arc::new(AtomicBool::new(false)),
                 model_operation_cancelled: Arc::new(AtomicBool::new(false)),
                 active_chat_run: Mutex::new(None),
@@ -342,7 +554,14 @@ fn run_desktop_shell() -> Result<(), tauri::Error> {
             unload_model,
             cancel_model_operation,
             start_chat_stream,
-            cancel_chat_stream
+            cancel_chat_stream,
+            list_conversations,
+            get_conversation,
+            delete_conversation,
+            list_credentials,
+            create_credential,
+            replace_credential,
+            delete_credential
         ])
         .build(tauri::generate_context!())?;
 
@@ -402,6 +621,28 @@ fn with_settings_store<T>(
     operation(&mut settings)
 }
 
+fn with_conversation_store<T>(
+    state: &tauri::State<'_, DesktopState>,
+    operation: impl FnOnce(&mut ConversationStore) -> Result<T, AppError>,
+) -> Result<T, AppError> {
+    let mut conversations = state.conversations.lock().map_err(|_| {
+        AppError::storage_unavailable("Lattice could not access local conversation storage.")
+    })?;
+
+    operation(&mut conversations)
+}
+
+fn with_credential_store<T>(
+    state: &tauri::State<'_, DesktopState>,
+    operation: impl FnOnce(&mut CredentialStore) -> Result<T, AppError>,
+) -> Result<T, AppError> {
+    let mut credentials = state.credentials.lock().map_err(|_| {
+        AppError::storage_unavailable("Lattice could not access local credential storage.")
+    })?;
+
+    operation(&mut credentials)
+}
+
 fn exit_after_startup_failure(error: &tauri::Error) -> ! {
     eprintln!("{}", startup_failure_message(error));
     std::process::exit(STARTUP_FAILURE_EXIT_CODE);
@@ -417,10 +658,13 @@ mod tests {
     use lattice_core::{
         AppRuntime, CANCEL_CHAT_STREAM_COMMAND, CANCEL_MODEL_OPERATION_COMMAND,
         CANCEL_MODEL_RUNTIME_OPERATION_COMMAND, CONFIGURE_MODEL_RUNTIME_COMMAND,
-        GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND,
-        GET_MODEL_SLOT_STATUS_COMMAND, LOAD_MODEL_COMMAND, PROBE_MODEL_RUNTIME_COMMAND,
-        RESET_APP_SETTINGS_COMMAND, START_CHAT_STREAM_COMMAND, START_MODEL_RUNTIME_COMMAND,
-        STOP_MODEL_RUNTIME_COMMAND, UNLOAD_MODEL_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
+        CREATE_CREDENTIAL_COMMAND, DELETE_CONVERSATION_COMMAND, DELETE_CREDENTIAL_COMMAND,
+        GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND, GET_CONVERSATION_COMMAND,
+        GET_MODEL_RUNTIME_STATUS_COMMAND, GET_MODEL_SLOT_STATUS_COMMAND,
+        LIST_CONVERSATIONS_COMMAND, LIST_CREDENTIALS_COMMAND, LOAD_MODEL_COMMAND,
+        PROBE_MODEL_RUNTIME_COMMAND, REPLACE_CREDENTIAL_COMMAND, RESET_APP_SETTINGS_COMMAND,
+        START_CHAT_STREAM_COMMAND, START_MODEL_RUNTIME_COMMAND, STOP_MODEL_RUNTIME_COMMAND,
+        UNLOAD_MODEL_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
     };
     use serde_json::Value;
     use std::{error::Error, fs, io, path::PathBuf};
@@ -455,7 +699,14 @@ mod tests {
                 UNLOAD_MODEL_COMMAND,
                 CANCEL_MODEL_OPERATION_COMMAND,
                 START_CHAT_STREAM_COMMAND,
-                CANCEL_CHAT_STREAM_COMMAND
+                CANCEL_CHAT_STREAM_COMMAND,
+                LIST_CONVERSATIONS_COMMAND,
+                GET_CONVERSATION_COMMAND,
+                DELETE_CONVERSATION_COMMAND,
+                LIST_CREDENTIALS_COMMAND,
+                CREATE_CREDENTIAL_COMMAND,
+                REPLACE_CREDENTIAL_COMMAND,
+                DELETE_CREDENTIAL_COMMAND
             ],
             [
                 "get_app_info",
@@ -473,7 +724,14 @@ mod tests {
                 "unload_model",
                 "cancel_model_operation",
                 "start_chat_stream",
-                "cancel_chat_stream"
+                "cancel_chat_stream",
+                "list_conversations",
+                "get_conversation",
+                "delete_conversation",
+                "list_credentials",
+                "create_credential",
+                "replace_credential",
+                "delete_credential"
             ]
         );
     }
@@ -550,7 +808,9 @@ mod tests {
                 "allow-model-runtime-discovery".to_string(),
                 "allow-model-runtime-lifecycle".to_string(),
                 "allow-local-models".to_string(),
-                "allow-chat-streaming".to_string()
+                "allow-chat-streaming".to_string(),
+                "allow-conversations".to_string(),
+                "allow-credentials".to_string()
             ]
         );
         assert!(capability.get("remote").is_none());
