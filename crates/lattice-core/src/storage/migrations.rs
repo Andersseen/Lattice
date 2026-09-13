@@ -31,6 +31,7 @@ pub(super) fn migrate(conn: &mut Connection, db_path: Option<&Path>) -> Result<(
         read_model_runtime_status(conn)?;
         read_model_load_state(conn)?;
         super::conversations::read_conversations_sanity(conn)?;
+        super::credentials::read_credentials_sanity(conn)?;
         return Ok(());
     }
 
@@ -46,6 +47,7 @@ pub(super) fn migrate(conn: &mut Connection, db_path: Option<&Path>) -> Result<(
             create_v3_schema(&tx)?;
             create_v4_schema(&tx)?;
             create_v5_schema(&tx)?;
+            create_v6_schema(&tx)?;
             write_model_runtime_status(&tx, &ModelRuntimeStatus::default())?;
         }
         1 => {
@@ -53,18 +55,25 @@ pub(super) fn migrate(conn: &mut Connection, db_path: Option<&Path>) -> Result<(
             create_v3_schema(&tx)?;
             create_v4_schema(&tx)?;
             create_v5_schema(&tx)?;
+            create_v6_schema(&tx)?;
             write_model_runtime_status(&tx, &ModelRuntimeStatus::default())?;
         }
         2 => {
             create_v3_schema(&tx)?;
             create_v4_schema(&tx)?;
             create_v5_schema(&tx)?;
+            create_v6_schema(&tx)?;
         }
         3 => {
             create_v4_schema(&tx)?;
             create_v5_schema(&tx)?;
+            create_v6_schema(&tx)?;
         }
-        4 => create_v5_schema(&tx)?,
+        4 => {
+            create_v5_schema(&tx)?;
+            create_v6_schema(&tx)?;
+        }
+        5 => create_v6_schema(&tx)?,
         _ => {
             return Err(AppError::unsupported_schema(
                 "Local settings schema is not supported by this Lattice version.",
@@ -197,6 +206,26 @@ fn create_v5_schema(tx: &Transaction<'_>) -> Result<(), AppError> {
         );
         CREATE INDEX idx_messages_conversation ON messages(conversation_id, sequence);
         CREATE INDEX idx_messages_status ON messages(status);",
+    )
+    .map_err(|_| AppError::migration_failed("Lattice could not migrate local settings."))?;
+
+    Ok(())
+}
+
+/// Adds the 0.10 credentials domain: reference metadata only — label,
+/// provider key, timestamps. No secret column exists, structurally; the
+/// secret itself lives exclusively in the OS keychain (see
+/// `credentials`/`storage::credentials`).
+fn create_v6_schema(tx: &Transaction<'_>) -> Result<(), AppError> {
+    tx.execute_batch(
+        "CREATE TABLE credentials (
+            id TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            provider_key TEXT NOT NULL,
+            created_at_unix_seconds INTEGER NOT NULL,
+            updated_at_unix_seconds INTEGER NOT NULL
+        );
+        CREATE INDEX idx_credentials_updated ON credentials(updated_at_unix_seconds DESC, id DESC);",
     )
     .map_err(|_| AppError::migration_failed("Lattice could not migrate local settings."))?;
 

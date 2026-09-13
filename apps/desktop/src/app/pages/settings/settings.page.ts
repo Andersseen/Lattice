@@ -9,6 +9,7 @@ import {
 import { VoltButton } from '@voltui/components';
 import type { AppearancePreference } from '@lattice/types';
 
+import { CredentialsStore } from '../../core/state/credentials.store';
 import { SettingsStore } from '../../core/state/settings.store';
 
 const APPEARANCE_OPTIONS: ReadonlyArray<{
@@ -29,8 +30,22 @@ const APPEARANCE_OPTIONS: ReadonlyArray<{
 })
 export class SettingsPage {
   private readonly settingsStore = inject(SettingsStore);
+  private readonly credentialsStore = inject(CredentialsStore);
 
   protected readonly appearanceOptions = APPEARANCE_OPTIONS;
+  protected readonly credentials = this.credentialsStore.credentials;
+  protected readonly credentialsError = this.credentialsStore.error;
+  protected readonly isLoadingCredentials = this.credentialsStore.isLoading;
+  protected readonly isSavingCredential = this.credentialsStore.isSaving;
+  protected readonly deletingCredentialId = this.credentialsStore.deletingId;
+  protected readonly draftCredentialLabel = signal('');
+  protected readonly draftCredentialProviderKey = signal('');
+  protected readonly canAddCredential = computed(
+    () =>
+      this.draftCredentialLabel().trim().length > 0 &&
+      this.draftCredentialProviderKey().trim().length > 0 &&
+      !this.isSavingCredential()
+  );
   protected readonly settings = this.settingsStore.settings;
   protected readonly error = this.settingsStore.error;
   protected readonly isLoading = this.settingsStore.isLoading;
@@ -91,5 +106,43 @@ export class SettingsPage {
 
   protected retry(): void {
     void this.settingsStore.load();
+  }
+
+  protected setCredentialLabel(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    this.draftCredentialLabel.set(target.value);
+  }
+
+  protected setCredentialProviderKey(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    this.draftCredentialProviderKey.set(target.value);
+  }
+
+  protected addCredential(): void {
+    if (!this.canAddCredential()) {
+      return;
+    }
+
+    const label = this.draftCredentialLabel().trim();
+    const providerKey = this.draftCredentialProviderKey().trim();
+    this.draftCredentialLabel.set('');
+    this.draftCredentialProviderKey.set('');
+    void this.credentialsStore.create(label, providerKey);
+  }
+
+  protected replaceCredential(id: string): void {
+    void this.credentialsStore.replace(id);
+  }
+
+  protected deleteCredential(id: string, label: string, event: Event): void {
+    event.stopPropagation();
+    if (!globalThis.confirm(`Delete "${label}"? This cannot be undone.`)) {
+      return;
+    }
+    void this.credentialsStore.delete(id);
+  }
+
+  protected retryCredentials(): void {
+    void this.credentialsStore.load();
   }
 }

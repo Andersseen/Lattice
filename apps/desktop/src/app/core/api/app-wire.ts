@@ -9,6 +9,8 @@ import type {
   ConversationCursor,
   ConversationDetail,
   ConversationSummary,
+  CredentialAvailability,
+  CredentialRef,
   GenerationStatus,
   ListConversationsResponse,
   Message,
@@ -24,6 +26,7 @@ const SAFE_MODEL_RUNTIME_ERROR = 'Lattice could not read model runtime status.';
 const SAFE_MODEL_SLOT_ERROR = 'Lattice could not read model slot status.';
 const SAFE_CHAT_ERROR = 'Lattice could not start the chat response.';
 const SAFE_CONVERSATION_ERROR = 'Lattice could not read this conversation.';
+const SAFE_CREDENTIAL_ERROR = 'Lattice could not read this credential.';
 const MAX_SAFE_MESSAGE_LENGTH = 240;
 
 export function decodeAppInfo(value: unknown): AppInfo {
@@ -82,6 +85,22 @@ export function decodeConversationDetail(value: unknown): ConversationDetail {
   throw createBridgeError(SAFE_CONVERSATION_ERROR);
 }
 
+export function decodeCredentialRefs(value: unknown): readonly CredentialRef[] {
+  if (Array.isArray(value) && value.every(isCredentialRef)) {
+    return value;
+  }
+
+  throw createBridgeError(SAFE_CREDENTIAL_ERROR);
+}
+
+export function decodeCredentialRef(value: unknown): CredentialRef {
+  if (isCredentialRef(value)) {
+    return value;
+  }
+
+  throw createBridgeError(SAFE_CREDENTIAL_ERROR);
+}
+
 /**
  * Unlike the other `decode*` functions, this never throws: a chat stream
  * channel delivers many events over one run's lifetime, and one malformed
@@ -132,6 +151,10 @@ export function normalizeChatError(error: unknown): AppError {
 
 export function normalizeConversationError(error: unknown): AppError {
   return normalizeAppError(error, SAFE_CONVERSATION_ERROR);
+}
+
+export function normalizeCredentialError(error: unknown): AppError {
+  return normalizeAppError(error, SAFE_CREDENTIAL_ERROR);
 }
 
 function createBridgeError(message: string): AppError {
@@ -488,6 +511,27 @@ function isConversationDetail(value: unknown): value is ConversationDetail {
     Array.isArray(value['messages']) &&
     value['messages'].every(isMessage) &&
     typeof value['hasMoreBefore'] === 'boolean'
+  );
+}
+
+function isCredentialRef(value: unknown): value is CredentialRef {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value['id'] === 'string' &&
+    typeof value['label'] === 'string' &&
+    typeof value['providerKey'] === 'string' &&
+    isCredentialAvailability(value['availability']) &&
+    isNonNegativeInteger(value['createdAtUnixSeconds']) &&
+    isNonNegativeInteger(value['updatedAtUnixSeconds'])
+  );
+}
+
+function isCredentialAvailability(value: unknown): value is CredentialAvailability {
+  return (
+    value === 'available' || value === 'locked' || value === 'missing' || value === 'unsupported'
   );
 }
 

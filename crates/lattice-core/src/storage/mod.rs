@@ -7,17 +7,19 @@
 //! and its own slice of `SettingsStore`'s methods, via a separate `impl
 //! SettingsStore` block per concern.
 //!
-//! `conversations` (0.9) is the first domain to follow this module's own
-//! prior guidance literally: it is a sibling module with its own store
-//! type, [`conversations::ConversationStore`], behind its own IPC surface
-//! — not another `impl SettingsStore` block. It still shares the same
-//! SQLite file and the same versioned `migrate()` cascade (a second,
-//! independent `rusqlite::Connection` to that file; see
-//! `conversations`'s module doc comment for why), so `CURRENT_SCHEMA_VERSION`
-//! remains one number shared by every domain. A later domain (memory,
-//! tasks) should follow `conversations`'s shape, not `settings`/`runtime`'s.
+//! `conversations` (0.9) and `credentials` (0.10) are the domains that
+//! follow this module's own prior guidance literally: each is a sibling
+//! module with its own store type ([`conversations::ConversationStore`],
+//! [`credentials::CredentialStore`]) behind its own IPC surface — not
+//! another `impl SettingsStore` block. They still share the same SQLite
+//! file and the same versioned `migrate()` cascade (each its own
+//! independent `rusqlite::Connection` to that file; see their module doc
+//! comments for why), so `CURRENT_SCHEMA_VERSION` remains one number shared
+//! by every domain. A later domain (memory, tasks) should follow their
+//! shape, not `settings`/`runtime`'s.
 
 mod conversations;
+mod credentials;
 mod database;
 mod migrations;
 mod runtime;
@@ -26,6 +28,7 @@ mod settings;
 mod test_support;
 
 pub use conversations::ConversationStore;
+pub use credentials::CredentialStore;
 pub use settings::{
     AppSettings, AppearancePreference, ResetAppSettingsRequest, UpdateAppSettingsRequest,
     GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
@@ -35,7 +38,7 @@ use crate::AppError;
 use rusqlite::Connection;
 use std::path::Path;
 
-pub(crate) const CURRENT_SCHEMA_VERSION: u32 = 5;
+pub(crate) const CURRENT_SCHEMA_VERSION: u32 = 6;
 pub(crate) const MODEL_LOAD_ROW_ID: i64 = 1;
 
 pub struct SettingsStore {

@@ -12,7 +12,10 @@ import {
   type ChatStreamEvent,
   type ConfigureModelRuntimeRequest,
   type ConversationDetail,
+  type CreateCredentialRequest,
+  type CredentialRef,
   type DeleteConversationRequest,
+  type DeleteCredentialRequest,
   type GetConversationRequest,
   type ListConversationsRequest,
   type ListConversationsResponse,
@@ -20,6 +23,7 @@ import {
   type ModelRuntimeStatus,
   type ModelSlotStatus,
   type ProbeModelRuntimeRequest,
+  type ReplaceCredentialRequest,
   type ResetAppSettingsRequest,
   type StartModelRuntimeRequest,
   type StopModelRuntimeRequest,
@@ -33,12 +37,15 @@ import {
   decodeChatRunHandle,
   decodeChatStreamEvent,
   decodeConversationDetail,
+  decodeCredentialRef,
+  decodeCredentialRefs,
   decodeListConversationsResponse,
   decodeModelRuntimeStatus,
   decodeModelSlotStatus,
   normalizeAppError,
   normalizeChatError,
   normalizeConversationError,
+  normalizeCredentialError,
   normalizeModelRuntimeError,
   normalizeModelSlotError,
   normalizeSettingsError
@@ -51,6 +58,12 @@ import {
   getWebConversation,
   listWebConversations
 } from './conversations-fallback';
+import {
+  createWebCredential,
+  deleteWebCredential,
+  listWebCredentials,
+  replaceWebCredential
+} from './credentials-fallback';
 import {
   cancelWebModelRuntimeOperation,
   configureWebModelRuntime,
@@ -391,6 +404,74 @@ export class AppApiService {
       });
     } catch (error: unknown) {
       throw normalizeConversationError(error);
+    }
+  }
+
+  async listCredentials(): Promise<readonly CredentialRef[]> {
+    if (!isTauriRuntime()) {
+      return listWebCredentials();
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeCredentialRefs(await invoke<unknown>(APP_COMMANDS.listCredentials));
+    } catch (error: unknown) {
+      throw normalizeCredentialError(error);
+    }
+  }
+
+  /**
+   * Triggers native secure entry (blocking, bounded by its own ~125s
+   * timeout on the native side); never resolves to or accepts a secret
+   * value here — Angular only ever sees the resulting `CredentialRef`.
+   */
+  async createCredential(request: CreateCredentialRequest): Promise<CredentialRef> {
+    if (!isTauriRuntime()) {
+      return createWebCredential(request);
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeCredentialRef(
+        await invoke<unknown>(APP_COMMANDS.createCredential, {
+          request
+        })
+      );
+    } catch (error: unknown) {
+      throw normalizeCredentialError(error);
+    }
+  }
+
+  async replaceCredential(request: ReplaceCredentialRequest): Promise<CredentialRef> {
+    if (!isTauriRuntime()) {
+      return replaceWebCredential(request);
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeCredentialRef(
+        await invoke<unknown>(APP_COMMANDS.replaceCredential, {
+          request
+        })
+      );
+    } catch (error: unknown) {
+      throw normalizeCredentialError(error);
+    }
+  }
+
+  async deleteCredential(request: DeleteCredentialRequest): Promise<void> {
+    if (!isTauriRuntime()) {
+      deleteWebCredential(request);
+      return;
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke<void>(APP_COMMANDS.deleteCredential, {
+        request
+      });
+    } catch (error: unknown) {
+      throw normalizeCredentialError(error);
     }
   }
 }

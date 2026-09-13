@@ -2,6 +2,10 @@ use crate::app_info::GET_APP_INFO_COMMAND;
 use crate::conversations::{
     DELETE_CONVERSATION_COMMAND, GET_CONVERSATION_COMMAND, LIST_CONVERSATIONS_COMMAND,
 };
+use crate::credentials::{
+    CREATE_CREDENTIAL_COMMAND, DELETE_CREDENTIAL_COMMAND, LIST_CREDENTIALS_COMMAND,
+    REPLACE_CREDENTIAL_COMMAND,
+};
 use crate::model_runtime::{
     CANCEL_MODEL_OPERATION_COMMAND, CANCEL_MODEL_RUNTIME_OPERATION_COMMAND,
     CONFIGURE_MODEL_RUNTIME_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND,
@@ -36,7 +40,11 @@ export const APP_COMMANDS = {{
   cancelChatStream: '{cancel_chat_stream_command}',
   listConversations: '{list_conversations_command}',
   getConversation: '{get_conversation_command}',
-  deleteConversation: '{delete_conversation_command}'
+  deleteConversation: '{delete_conversation_command}',
+  listCredentials: '{list_credentials_command}',
+  createCredential: '{create_credential_command}',
+  replaceCredential: '{replace_credential_command}',
+  deleteCredential: '{delete_credential_command}'
 }} as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -365,6 +373,33 @@ export interface ConversationDetail {{
 export interface DeleteConversationRequest {{
   readonly conversationId: string;
 }}
+
+export type CredentialAvailability = 'available' | 'locked' | 'missing' | 'unsupported';
+
+// No secret field, structurally — Angular never sees a resolved value, only
+// this reference shape. See the credentials spec's "Lattice SHALL Acquire A
+// New Or Replacement Secret Through Native Entry Only".
+export interface CredentialRef {{
+  readonly id: string;
+  readonly label: string;
+  readonly providerKey: string;
+  readonly availability: CredentialAvailability;
+  readonly createdAtUnixSeconds: number;
+  readonly updatedAtUnixSeconds: number;
+}}
+
+export interface CreateCredentialRequest {{
+  readonly label: string;
+  readonly providerKey: string;
+}}
+
+export interface ReplaceCredentialRequest {{
+  readonly id: string;
+}}
+
+export interface DeleteCredentialRequest {{
+  readonly id: string;
+}}
 "#,
         get_app_info_command = GET_APP_INFO_COMMAND,
         get_app_settings_command = GET_APP_SETTINGS_COMMAND,
@@ -384,7 +419,11 @@ export interface DeleteConversationRequest {{
         cancel_chat_stream_command = CANCEL_CHAT_STREAM_COMMAND,
         list_conversations_command = LIST_CONVERSATIONS_COMMAND,
         get_conversation_command = GET_CONVERSATION_COMMAND,
-        delete_conversation_command = DELETE_CONVERSATION_COMMAND
+        delete_conversation_command = DELETE_CONVERSATION_COMMAND,
+        list_credentials_command = LIST_CREDENTIALS_COMMAND,
+        create_credential_command = CREATE_CREDENTIAL_COMMAND,
+        replace_credential_command = REPLACE_CREDENTIAL_COMMAND,
+        delete_credential_command = DELETE_CREDENTIAL_COMMAND
     )
 }
 

@@ -31,6 +31,29 @@ test('settings can be edited in browser smoke mode', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-appearance', 'dark');
 });
 
+test('a credential can be added, replaced, and deleted in browser smoke mode', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+
+  await expect(page.getByRole('heading', { name: 'Credentials' })).toBeVisible();
+  await expect(page.getByText('No credentials yet.')).toBeVisible();
+
+  await page.getByRole('textbox', { name: 'Label' }).fill('OpenAI');
+  await page.getByRole('textbox', { name: 'Provider key' }).fill('openai');
+  await page.getByRole('button', { name: 'Add' }).click();
+
+  const credentialCard = page.locator('.credential-card');
+  await expect(credentialCard.getByText('OpenAI', { exact: true })).toBeVisible();
+  await expect(credentialCard.getByText('openai · available')).toBeVisible();
+
+  await credentialCard.getByRole('button', { name: 'Replace' }).click();
+  await expect(credentialCard.getByText('openai · available')).toBeVisible();
+
+  page.once('dialog', (dialog) => void dialog.accept());
+  await credentialCard.getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByText('No credentials yet.')).toBeVisible();
+});
+
 test('model runtime discovery can be configured in browser smoke mode', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Models', exact: true }).click();

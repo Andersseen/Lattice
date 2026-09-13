@@ -78,4 +78,83 @@
     </div>
   </footer>
   } }
+
+  <section class="setting-group credentials-group" aria-labelledby="credentials-title">
+    <div>
+      <h2 id="credentials-title">Credentials</h2>
+      <p>
+        Secret values are entered through a native, OS-secure prompt and never seen by this window.
+      </p>
+    </div>
+
+    @if (credentialsError(); as credentialError) {
+    <div class="notice" role="alert">
+      <p>{{ credentialError.message }}</p>
+      <volt-button type="button" variant="outline" size="sm" (click)="retryCredentials()"
+        >Retry</volt-button
+      >
+    </div>
+    }
+
+    <form class="credential-form" (submit)="$event.preventDefault(); addCredential()">
+      <label class="text-field">
+        <span>Label</span>
+        <input
+          type="text"
+          placeholder="OpenAI"
+          [value]="draftCredentialLabel()"
+          (input)="setCredentialLabel($event)"
+        />
+      </label>
+      <label class="text-field">
+        <span>Provider key</span>
+        <input
+          type="text"
+          placeholder="openai"
+          [value]="draftCredentialProviderKey()"
+          (input)="setCredentialProviderKey($event)"
+        />
+      </label>
+      <volt-button type="submit" size="md" [disabled]="!canAddCredential()">
+        {{ isSavingCredential() ? 'Saving' : 'Add' }}
+      </volt-button>
+    </form>
+
+    @if (isLoadingCredentials() && credentials().length === 0) {
+    <p class="status">Loading credentials.</p>
+    } @else if (credentials().length === 0) {
+    <p class="status">No credentials yet.</p>
+    } @else {
+    <ul class="credential-list">
+      @for (credential of credentials(); track credential.id) {
+      <li class="credential-card">
+        <div class="summary">
+          <strong>{{ credential.label }}</strong>
+          <span class="meta">{{ credential.providerKey }} · {{ credential.availability }}</span>
+        </div>
+        <div class="actions">
+          <volt-button
+            type="button"
+            variant="outline"
+            size="sm"
+            [disabled]="isSavingCredential()"
+            (click)="replaceCredential(credential.id)"
+          >
+            Replace
+          </volt-button>
+          <volt-button
+            type="button"
+            variant="outline"
+            size="sm"
+            [disabled]="deletingCredentialId() === credential.id"
+            (click)="deleteCredential(credential.id, credential.label, $event)"
+          >
+            {{ deletingCredentialId() === credential.id ? 'Deleting' : 'Delete' }}
+          </volt-button>
+        </div>
+      </li>
+      }
+    </ul>
+    }
+  </section>
 </section>

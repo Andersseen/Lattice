@@ -19,7 +19,11 @@ export const APP_COMMANDS = {
   cancelChatStream: 'cancel_chat_stream',
   listConversations: 'list_conversations',
   getConversation: 'get_conversation',
-  deleteConversation: 'delete_conversation'
+  deleteConversation: 'delete_conversation',
+  listCredentials: 'list_credentials',
+  createCredential: 'create_credential',
+  replaceCredential: 'replace_credential',
+  deleteCredential: 'delete_credential'
 } as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -347,4 +351,31 @@ export interface ConversationDetail {
 
 export interface DeleteConversationRequest {
   readonly conversationId: string;
+}
+
+export type CredentialAvailability = 'available' | 'locked' | 'missing' | 'unsupported';
+
+// No secret field, structurally — Angular never sees a resolved value, only
+// this reference shape. See the credentials spec's "Lattice SHALL Acquire A
+// New Or Replacement Secret Through Native Entry Only".
+export interface CredentialRef {
+  readonly id: string;
+  readonly label: string;
+  readonly providerKey: string;
+  readonly availability: CredentialAvailability;
+  readonly createdAtUnixSeconds: number;
+  readonly updatedAtUnixSeconds: number;
+}
+
+export interface CreateCredentialRequest {
+  readonly label: string;
+  readonly providerKey: string;
+}
+
+export interface ReplaceCredentialRequest {
+  readonly id: string;
+}
+
+export interface DeleteCredentialRequest {
+  readonly id: string;
 }

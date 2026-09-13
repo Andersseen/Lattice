@@ -2,11 +2,12 @@ use lattice_core::{
     app_info, authorize_chat_request, new_chat_run_id, run_chat_stream, AppError, AppInfo,
     AppSettings, CancelChatStreamRequest, CancelModelOperationRequest,
     CancelModelRuntimeOperationRequest, ChatRequest, ChatRunHandle, ChatStreamEvent,
-    ConfigureModelRuntimeRequest, ConversationDetail, ConversationStore, DeleteConversationRequest,
+    ConfigureModelRuntimeRequest, ConversationDetail, ConversationStore, CreateCredentialRequest,
+    CredentialRef, CredentialStore, DeleteConversationRequest, DeleteCredentialRequest,
     GenerationStatus, GetConversationRequest, GetModelSlotStatusRequest, ListConversationsRequest,
     ListConversationsResponse, LoadModelRequest, ModelRuntimeStatus, ModelSlotStatus,
-    ProbeModelRuntimeRequest, ResetAppSettingsRequest, SettingsStore, StartChatStreamRequest,
-    StartModelRuntimeRequest, StopModelRuntimeRequest, UnloadModelRequest,
+    ProbeModelRuntimeRequest, ReplaceCredentialRequest, ResetAppSettingsRequest, SettingsStore,
+    StartChatStreamRequest, StartModelRuntimeRequest, StopModelRuntimeRequest, UnloadModelRequest,
     UpdateAppSettingsRequest, CHECKPOINT_DELTA_BATCH, CHECKPOINT_MIN_INTERVAL,
 };
 use std::{
@@ -26,6 +27,7 @@ const SETTINGS_DATABASE_FILE: &str = "lattice.sqlite3";
 struct DesktopState {
     settings: Mutex<SettingsStore>,
     conversations: Mutex<ConversationStore>,
+    credentials: Mutex<CredentialStore>,
     runtime_operation_cancelled: Arc<AtomicBool>,
     model_operation_cancelled: Arc<AtomicBool>,
     active_chat_run: Mutex<Option<ActiveChatRun>>,
@@ -465,6 +467,38 @@ fn delete_conversation(
     with_conversation_store(&state, |store| store.delete(request))
 }
 
+#[tauri::command]
+fn list_credentials(state: tauri::State<'_, DesktopState>) -> Result<Vec<CredentialRef>, AppError> {
+    with_credential_store(&state, |store| store.list())
+}
+
+/// Blocking, bounded by the native prompt's own ~125s timeout — no new
+/// threading model, matching how `configure_model_runtime`/`probe_model_runtime`
+/// already block synchronously on a bounded subprocess call.
+#[tauri::command]
+fn create_credential(
+    state: tauri::State<'_, DesktopState>,
+    request: CreateCredentialRequest,
+) -> Result<CredentialRef, AppError> {
+    with_credential_store(&state, |store| store.create(request))
+}
+
+#[tauri::command]
+fn replace_credential(
+    state: tauri::State<'_, DesktopState>,
+    request: ReplaceCredentialRequest,
+) -> Result<CredentialRef, AppError> {
+    with_credential_store(&state, |store| store.replace(request))
+}
+
+#[tauri::command]
+fn delete_credential(
+    state: tauri::State<'_, DesktopState>,
+    request: DeleteCredentialRequest,
+) -> Result<(), AppError> {
+    with_credential_store(&state, |store| store.delete(request))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if let Err(error) = run_desktop_shell() {
@@ -484,9 +518,15 @@ fn run_desktop_shell() -> Result<(), tauri::Error> {
             // store opens first; this one then only takes the existing
             // "schema already current" read-validation branch.
             let conversations = ConversationStore::open(&settings_path)?;
+            // Same file again, third independent connection, same reason —
+            // see `CredentialStore`'s own module doc comment. Only
+            // reference metadata lives in this file; the secret itself
+            // never does (see `credentials`'s module doc comment).
+            let credentials = CredentialStore::open(&settings_path)?;
             app.manage(DesktopState {
                 settings: Mutex::new(settings),
                 conversations: Mutex::new(conversations),
+                credentials: Mutex::new(credentials),
                 runtime_operation_cancelled: Arc::new(AtomicBool::new(false)),
                 model_operation_cancelled: Arc::new(AtomicBool::new(false)),
                 active_chat_run: Mutex::new(None),
@@ -517,7 +557,11 @@ fn run_desktop_shell() -> Result<(), tauri::Error> {
             cancel_chat_stream,
             list_conversations,
             get_conversation,
-            delete_conversation
+            delete_conversation,
+            list_credentials,
+            create_credential,
+            replace_credential,
+            delete_credential
         ])
         .build(tauri::generate_context!())?;
 
@@ -588,6 +632,17 @@ fn with_conversation_store<T>(
     operation(&mut conversations)
 }
 
+fn with_credential_store<T>(
+    state: &tauri::State<'_, DesktopState>,
+    operation: impl FnOnce(&mut CredentialStore) -> Result<T, AppError>,
+) -> Result<T, AppError> {
+    let mut credentials = state.credentials.lock().map_err(|_| {
+        AppError::storage_unavailable("Lattice could not access local credential storage.")
+    })?;
+
+    operation(&mut credentials)
+}
+
 fn exit_after_startup_failure(error: &tauri::Error) -> ! {
     eprintln!("{}", startup_failure_message(error));
     std::process::exit(STARTUP_FAILURE_EXIT_CODE);
@@ -603,11 +658,13 @@ mod tests {
     use lattice_core::{
         AppRuntime, CANCEL_CHAT_STREAM_COMMAND, CANCEL_MODEL_OPERATION_COMMAND,
         CANCEL_MODEL_RUNTIME_OPERATION_COMMAND, CONFIGURE_MODEL_RUNTIME_COMMAND,
-        DELETE_CONVERSATION_COMMAND, GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND,
-        GET_CONVERSATION_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND, GET_MODEL_SLOT_STATUS_COMMAND,
-        LIST_CONVERSATIONS_COMMAND, LOAD_MODEL_COMMAND, PROBE_MODEL_RUNTIME_COMMAND,
-        RESET_APP_SETTINGS_COMMAND, START_CHAT_STREAM_COMMAND, START_MODEL_RUNTIME_COMMAND,
-        STOP_MODEL_RUNTIME_COMMAND, UNLOAD_MODEL_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
+        CREATE_CREDENTIAL_COMMAND, DELETE_CONVERSATION_COMMAND, DELETE_CREDENTIAL_COMMAND,
+        GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND, GET_CONVERSATION_COMMAND,
+        GET_MODEL_RUNTIME_STATUS_COMMAND, GET_MODEL_SLOT_STATUS_COMMAND,
+        LIST_CONVERSATIONS_COMMAND, LIST_CREDENTIALS_COMMAND, LOAD_MODEL_COMMAND,
+        PROBE_MODEL_RUNTIME_COMMAND, REPLACE_CREDENTIAL_COMMAND, RESET_APP_SETTINGS_COMMAND,
+        START_CHAT_STREAM_COMMAND, START_MODEL_RUNTIME_COMMAND, STOP_MODEL_RUNTIME_COMMAND,
+        UNLOAD_MODEL_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
     };
     use serde_json::Value;
     use std::{error::Error, fs, io, path::PathBuf};
@@ -645,7 +702,11 @@ mod tests {
                 CANCEL_CHAT_STREAM_COMMAND,
                 LIST_CONVERSATIONS_COMMAND,
                 GET_CONVERSATION_COMMAND,
-                DELETE_CONVERSATION_COMMAND
+                DELETE_CONVERSATION_COMMAND,
+                LIST_CREDENTIALS_COMMAND,
+                CREATE_CREDENTIAL_COMMAND,
+                REPLACE_CREDENTIAL_COMMAND,
+                DELETE_CREDENTIAL_COMMAND
             ],
             [
                 "get_app_info",
@@ -666,7 +727,11 @@ mod tests {
                 "cancel_chat_stream",
                 "list_conversations",
                 "get_conversation",
-                "delete_conversation"
+                "delete_conversation",
+                "list_credentials",
+                "create_credential",
+                "replace_credential",
+                "delete_credential"
             ]
         );
     }
@@ -744,7 +809,8 @@ mod tests {
                 "allow-model-runtime-lifecycle".to_string(),
                 "allow-local-models".to_string(),
                 "allow-chat-streaming".to_string(),
-                "allow-conversations".to_string()
+                "allow-conversations".to_string(),
+                "allow-credentials".to_string()
             ]
         );
         assert!(capability.get("remote").is_none());
