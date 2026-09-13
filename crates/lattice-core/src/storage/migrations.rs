@@ -30,6 +30,7 @@ pub(super) fn migrate(conn: &mut Connection, db_path: Option<&Path>) -> Result<(
         read_settings(conn)?;
         read_model_runtime_status(conn)?;
         read_model_load_state(conn)?;
+        super::conversations::read_conversations_sanity(conn)?;
         return Ok(());
     }
 
@@ -44,19 +45,26 @@ pub(super) fn migrate(conn: &mut Connection, db_path: Option<&Path>) -> Result<(
             create_v2_schema(&tx)?;
             create_v3_schema(&tx)?;
             create_v4_schema(&tx)?;
+            create_v5_schema(&tx)?;
             write_model_runtime_status(&tx, &ModelRuntimeStatus::default())?;
         }
         1 => {
             create_v2_schema(&tx)?;
             create_v3_schema(&tx)?;
             create_v4_schema(&tx)?;
+            create_v5_schema(&tx)?;
             write_model_runtime_status(&tx, &ModelRuntimeStatus::default())?;
         }
         2 => {
             create_v3_schema(&tx)?;
             create_v4_schema(&tx)?;
+            create_v5_schema(&tx)?;
         }
-        3 => create_v4_schema(&tx)?,
+        3 => {
+            create_v4_schema(&tx)?;
+            create_v5_schema(&tx)?;
+        }
+        4 => create_v5_schema(&tx)?,
         _ => {
             return Err(AppError::unsupported_schema(
                 "Local settings schema is not supported by this Lattice version.",
@@ -148,6 +156,47 @@ fn create_v4_schema(tx: &Transaction<'_>) -> Result<(), AppError> {
     tx.execute(
         "INSERT INTO model_load_state (id, revision, ownership_state) VALUES (?1, 1, 'unknown')",
         params![MODEL_LOAD_ROW_ID],
+    )
+    .map_err(|_| AppError::migration_failed("Lattice could not migrate local settings."))?;
+
+    Ok(())
+}
+
+/// Adds the 0.9 conversations domain: one row per conversation, one row per
+/// message, ordered by an app-assigned per-conversation `sequence` (never a
+/// provider run ID — see `conversations` spec's identity requirement).
+/// `messages.conversation_id` cascades on delete; this only takes effect
+/// because `database::open_connection`/`apply_connection_pragmas` turns on
+/// `PRAGMA foreign_keys` (off by default in SQLite) on every connection.
+fn create_v5_schema(tx: &Transaction<'_>) -> Result<(), AppError> {
+    tx.execute_batch(
+        "CREATE TABLE conversations (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            created_at_unix_seconds INTEGER NOT NULL,
+            updated_at_unix_seconds INTEGER NOT NULL
+        );
+        CREATE INDEX idx_conversations_updated
+            ON conversations(updated_at_unix_seconds DESC, id DESC);
+
+        CREATE TABLE messages (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+            sequence INTEGER NOT NULL,
+            role TEXT NOT NULL CHECK (role IN ('system', 'user', 'assistant')),
+            text TEXT NOT NULL,
+            status TEXT NOT NULL CHECK (
+                status IN ('complete', 'streaming', 'cancelled', 'failed', 'interrupted')
+            ),
+            provider_key TEXT,
+            model_key TEXT,
+            error_message TEXT,
+            created_at_unix_seconds INTEGER NOT NULL,
+            updated_at_unix_seconds INTEGER NOT NULL,
+            UNIQUE (conversation_id, sequence)
+        );
+        CREATE INDEX idx_messages_conversation ON messages(conversation_id, sequence);
+        CREATE INDEX idx_messages_status ON messages(status);",
     )
     .map_err(|_| AppError::migration_failed("Lattice could not migrate local settings."))?;
 

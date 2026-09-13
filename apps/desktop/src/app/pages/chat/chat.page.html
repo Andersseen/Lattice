@@ -2,9 +2,14 @@
   <div class="heading">
     <p class="eyebrow">Local streaming chat</p>
     <h1 id="chat-title">Chat</h1>
+    <volt-button type="button" variant="outline" size="sm" (click)="newChat()"
+      >New chat</volt-button
+    >
   </div>
 
-  @if (loadedModelKey(); as modelKey) {
+  @if (isLoadingConversation()) {
+  <p class="status-text">Loading conversation.</p>
+  } @if (loadedModelKey(); as modelKey) {
   <p class="status-text">Talking to <strong>{{ modelKey }}</strong>.</p>
   } @else {
   <div class="notice" role="alert">
@@ -29,6 +34,8 @@
       <span class="status-tag">Cancelled</span>
       } @if (entry.status === 'failed') {
       <span class="status-tag">Failed</span>
+      } @if (entry.status === 'interrupted') {
+      <span class="status-tag">Interrupted — not resumed automatically</span>
       }
     </article>
     }

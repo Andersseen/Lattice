@@ -66,10 +66,26 @@ pub struct ChatRequest {
     pub messages: Vec<ChatMessage>,
 }
 
+/// Amended by 0.9 (`conversation-persistence`): the Tauri command's actual
+/// request wraps the unchanged `ChatRequest` above with conversation
+/// identity. `ChatRequest`/`ChatStreamEvent` themselves, and everything
+/// below this struct, are untouched by that change — see
+/// `openspec/changes/conversation-persistence/design.md`'s "Amendment to
+/// 0.8" for why persistence wraps this port instead of changing it.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartChatStreamRequest {
+    pub conversation_id: Option<String>,
+    pub chat: ChatRequest,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatRunHandle {
     pub run_id: String,
+    /// Added by 0.9: the conversation this run belongs to — the caller's
+    /// own ID if it continued one, or the ID Lattice just created.
+    pub conversation_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]

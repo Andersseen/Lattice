@@ -57,7 +57,7 @@ Angular owns:
 Rust owns:
 
 - Native filesystem access.
-- SQLite storage, split by concern under `crates/lattice-core/src/storage/` (connection/migration mechanics, application settings, runtime/model state) behind one `SettingsStore` handle. A future persistence domain (conversations, memory, tasks) gets its own sibling module and its own store/IPC surface, not another method bolted onto `SettingsStore`.
+- SQLite storage, split by concern under `crates/lattice-core/src/storage/` (connection/migration mechanics, application settings, runtime/model state, conversations) behind two store handles sharing one file: `SettingsStore` for settings/runtime/model state, and `ConversationStore` (0.9) as the first domain to follow this module's own sibling-module-and-store-type guidance. A future persistence domain (memory, tasks) should follow `ConversationStore`'s shape, not extend either existing store.
 - Process spawning and lifecycle.
 - Secrets and OS APIs.
 - Runtime orchestration.

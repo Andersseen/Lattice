@@ -158,3 +158,33 @@ test('a chat response can be cancelled mid-stream in browser smoke mode', async 
   await expect(page.locator('.message.assistant .status-tag')).toHaveText('Cancelled');
   await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled();
 });
+
+test('a conversation appears in history and can be reopened and deleted', async ({ page }) => {
+  await loadQwenModel(page);
+  await page.getByRole('link', { name: 'Chat', exact: true }).click();
+
+  const input = page.getByRole('textbox', { name: 'Message' });
+  await input.fill('Hello there');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled({ timeout: 10_000 });
+
+  await page.getByRole('link', { name: 'History', exact: true }).click();
+  await expect(page).toHaveURL(/\/history$/);
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  await expect(page.getByText('Hello there')).toBeVisible();
+  await expect(page.getByText('2 messages')).toBeVisible();
+
+  await page.getByText('Hello there').click();
+  await expect(page).toHaveURL(/\/chat\?conversationId=/);
+  await expect(page.locator('.message.assistant .text')).toContainText('simulated', {
+    timeout: 10_000
+  });
+
+  await page.getByRole('button', { name: 'New chat' }).click();
+  await expect(page.getByText('No messages yet. Say hello.')).toBeVisible();
+
+  await page.getByRole('link', { name: 'History', exact: true }).click();
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByText('No conversations yet.')).toBeVisible();
+});

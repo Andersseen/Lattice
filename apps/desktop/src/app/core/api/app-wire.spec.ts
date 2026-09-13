@@ -262,7 +262,20 @@ describe('app wire boundary', () => {
   });
 
   it('decodes a chat run handle from untrusted IPC payloads', () => {
-    expect(decodeChatRunHandle({ runId: 'run-1' })).toEqual({ runId: 'run-1' });
+    expect(decodeChatRunHandle({ runId: 'run-1', conversationId: 'conversation-1' })).toEqual({
+      runId: 'run-1',
+      conversationId: 'conversation-1'
+    });
+  });
+
+  it('rejects a chat run handle missing a conversation id', () => {
+    expect(() => decodeChatRunHandle({ runId: 'run-1' })).toThrow(
+      expect.objectContaining<AppError>({
+        code: 'bridge.unknown',
+        message: 'Lattice could not start the chat response.',
+        recoverable: true
+      })
+    );
   });
 
   it('rejects a malformed chat run handle', () => {

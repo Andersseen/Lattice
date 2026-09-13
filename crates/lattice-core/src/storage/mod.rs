@@ -1,16 +1,23 @@
 //! Rust-owned local persistence, split by concern rather than kept as one
 //! growing file: `database` (connection/version/scalar mechanics),
 //! `migrations` (schema evolution), `settings` (non-secret application
-//! preferences) and `runtime` (`ModelRuntime`/local-model state). All four
-//! share one [`SettingsStore`] handle and one SQLite file — the storage
-//! contract 0.4 established — but each owns only its own table(s) and its
-//! own slice of `SettingsStore`'s methods, via a separate `impl
-//! SettingsStore` block per concern. A future domain (0.9 conversations,
-//! and later memory/tasks) should get its own sibling module and its own
-//! store type behind its own IPC surface, not another `impl SettingsStore`
-//! here — this module's job is settings/runtime/model persistence, not
-//! "everything Lattice ever persists."
+//! preferences) and `runtime` (`ModelRuntime`/local-model state). Those
+//! four share one [`SettingsStore`] handle and one SQLite file — the
+//! storage contract 0.4 established — but each owns only its own table(s)
+//! and its own slice of `SettingsStore`'s methods, via a separate `impl
+//! SettingsStore` block per concern.
+//!
+//! `conversations` (0.9) is the first domain to follow this module's own
+//! prior guidance literally: it is a sibling module with its own store
+//! type, [`conversations::ConversationStore`], behind its own IPC surface
+//! — not another `impl SettingsStore` block. It still shares the same
+//! SQLite file and the same versioned `migrate()` cascade (a second,
+//! independent `rusqlite::Connection` to that file; see
+//! `conversations`'s module doc comment for why), so `CURRENT_SCHEMA_VERSION`
+//! remains one number shared by every domain. A later domain (memory,
+//! tasks) should follow `conversations`'s shape, not `settings`/`runtime`'s.
 
+mod conversations;
 mod database;
 mod migrations;
 mod runtime;
@@ -18,6 +25,7 @@ mod settings;
 #[cfg(test)]
 mod test_support;
 
+pub use conversations::ConversationStore;
 pub use settings::{
     AppSettings, AppearancePreference, ResetAppSettingsRequest, UpdateAppSettingsRequest,
     GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
@@ -27,7 +35,7 @@ use crate::AppError;
 use rusqlite::Connection;
 use std::path::Path;
 
-pub(crate) const CURRENT_SCHEMA_VERSION: u32 = 4;
+pub(crate) const CURRENT_SCHEMA_VERSION: u32 = 5;
 pub(crate) const MODEL_LOAD_ROW_ID: i64 = 1;
 
 pub struct SettingsStore {
@@ -48,6 +56,7 @@ impl SettingsStore {
         let mut conn = Connection::open_in_memory().map_err(|_| {
             AppError::storage_unavailable("Lattice could not open local settings storage.")
         })?;
+        database::apply_connection_pragmas(&conn)?;
         migrations::migrate(&mut conn, None)?;
         Ok(Self { conn })
     }

@@ -1,4 +1,7 @@
 use crate::app_info::GET_APP_INFO_COMMAND;
+use crate::conversations::{
+    DELETE_CONVERSATION_COMMAND, GET_CONVERSATION_COMMAND, LIST_CONVERSATIONS_COMMAND,
+};
 use crate::model_runtime::{
     CANCEL_MODEL_OPERATION_COMMAND, CANCEL_MODEL_RUNTIME_OPERATION_COMMAND,
     CONFIGURE_MODEL_RUNTIME_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND,
@@ -30,7 +33,10 @@ export const APP_COMMANDS = {{
   unloadModel: '{unload_model_command}',
   cancelModelOperation: '{cancel_model_operation_command}',
   startChatStream: '{start_chat_stream_command}',
-  cancelChatStream: '{cancel_chat_stream_command}'
+  cancelChatStream: '{cancel_chat_stream_command}',
+  listConversations: '{list_conversations_command}',
+  getConversation: '{get_conversation_command}',
+  deleteConversation: '{delete_conversation_command}'
 }} as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -240,8 +246,16 @@ export interface ChatRequest {{
   readonly messages: readonly ChatMessage[];
 }}
 
+// Amended by 0.9 (conversation persistence): the command's actual request
+// wraps the unchanged ChatRequest above with conversation identity.
+export interface StartChatStreamRequest {{
+  readonly conversationId: string | null;
+  readonly chat: ChatRequest;
+}}
+
 export interface ChatRunHandle {{
   readonly runId: string;
+  readonly conversationId: string;
 }}
 
 export interface CancelChatStreamRequest {{
@@ -289,6 +303,68 @@ export type ChatStreamEvent =
   | ChatStreamEventCompleted
   | ChatStreamEventCancelled
   | ChatStreamEventFailed;
+
+export type GenerationStatus = 'complete' | 'streaming' | 'cancelled' | 'failed' | 'interrupted';
+
+export interface Message {{
+  readonly id: string;
+  readonly conversationId: string;
+  readonly sequence: number;
+  readonly role: ChatRole;
+  readonly text: string;
+  readonly status: GenerationStatus;
+  readonly providerKey?: string;
+  readonly modelKey?: string;
+  readonly errorMessage?: string;
+  readonly createdAtUnixSeconds: number;
+  readonly updatedAtUnixSeconds: number;
+}}
+
+export interface Conversation {{
+  readonly id: string;
+  readonly title: string;
+  readonly createdAtUnixSeconds: number;
+  readonly updatedAtUnixSeconds: number;
+}}
+
+export interface ConversationSummary {{
+  readonly id: string;
+  readonly title: string;
+  readonly updatedAtUnixSeconds: number;
+  readonly messageCount: number;
+  readonly lastStatus?: GenerationStatus;
+}}
+
+export interface ConversationCursor {{
+  readonly updatedAtUnixSeconds: number;
+  readonly id: string;
+}}
+
+export interface ListConversationsRequest {{
+  readonly limit?: number;
+  readonly before?: ConversationCursor;
+}}
+
+export interface ListConversationsResponse {{
+  readonly conversations: readonly ConversationSummary[];
+  readonly nextBefore?: ConversationCursor;
+}}
+
+export interface GetConversationRequest {{
+  readonly conversationId: string;
+  readonly limit?: number;
+  readonly beforeSequence?: number;
+}}
+
+export interface ConversationDetail {{
+  readonly conversation: Conversation;
+  readonly messages: readonly Message[];
+  readonly hasMoreBefore: boolean;
+}}
+
+export interface DeleteConversationRequest {{
+  readonly conversationId: string;
+}}
 "#,
         get_app_info_command = GET_APP_INFO_COMMAND,
         get_app_settings_command = GET_APP_SETTINGS_COMMAND,
@@ -305,7 +381,10 @@ export type ChatStreamEvent =
         unload_model_command = UNLOAD_MODEL_COMMAND,
         cancel_model_operation_command = CANCEL_MODEL_OPERATION_COMMAND,
         start_chat_stream_command = START_CHAT_STREAM_COMMAND,
-        cancel_chat_stream_command = CANCEL_CHAT_STREAM_COMMAND
+        cancel_chat_stream_command = CANCEL_CHAT_STREAM_COMMAND,
+        list_conversations_command = LIST_CONVERSATIONS_COMMAND,
+        get_conversation_command = GET_CONVERSATION_COMMAND,
+        delete_conversation_command = DELETE_CONVERSATION_COMMAND
     )
 }
 

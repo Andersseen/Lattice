@@ -16,7 +16,10 @@ export const APP_COMMANDS = {
   unloadModel: 'unload_model',
   cancelModelOperation: 'cancel_model_operation',
   startChatStream: 'start_chat_stream',
-  cancelChatStream: 'cancel_chat_stream'
+  cancelChatStream: 'cancel_chat_stream',
+  listConversations: 'list_conversations',
+  getConversation: 'get_conversation',
+  deleteConversation: 'delete_conversation'
 } as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -226,8 +229,16 @@ export interface ChatRequest {
   readonly messages: readonly ChatMessage[];
 }
 
+// Amended by 0.9 (conversation persistence): the command's actual request
+// wraps the unchanged ChatRequest above with conversation identity.
+export interface StartChatStreamRequest {
+  readonly conversationId: string | null;
+  readonly chat: ChatRequest;
+}
+
 export interface ChatRunHandle {
   readonly runId: string;
+  readonly conversationId: string;
 }
 
 export interface CancelChatStreamRequest {
@@ -275,3 +286,65 @@ export type ChatStreamEvent =
   | ChatStreamEventCompleted
   | ChatStreamEventCancelled
   | ChatStreamEventFailed;
+
+export type GenerationStatus = 'complete' | 'streaming' | 'cancelled' | 'failed' | 'interrupted';
+
+export interface Message {
+  readonly id: string;
+  readonly conversationId: string;
+  readonly sequence: number;
+  readonly role: ChatRole;
+  readonly text: string;
+  readonly status: GenerationStatus;
+  readonly providerKey?: string;
+  readonly modelKey?: string;
+  readonly errorMessage?: string;
+  readonly createdAtUnixSeconds: number;
+  readonly updatedAtUnixSeconds: number;
+}
+
+export interface Conversation {
+  readonly id: string;
+  readonly title: string;
+  readonly createdAtUnixSeconds: number;
+  readonly updatedAtUnixSeconds: number;
+}
+
+export interface ConversationSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly updatedAtUnixSeconds: number;
+  readonly messageCount: number;
+  readonly lastStatus?: GenerationStatus;
+}
+
+export interface ConversationCursor {
+  readonly updatedAtUnixSeconds: number;
+  readonly id: string;
+}
+
+export interface ListConversationsRequest {
+  readonly limit?: number;
+  readonly before?: ConversationCursor;
+}
+
+export interface ListConversationsResponse {
+  readonly conversations: readonly ConversationSummary[];
+  readonly nextBefore?: ConversationCursor;
+}
+
+export interface GetConversationRequest {
+  readonly conversationId: string;
+  readonly limit?: number;
+  readonly beforeSequence?: number;
+}
+
+export interface ConversationDetail {
+  readonly conversation: Conversation;
+  readonly messages: readonly Message[];
+  readonly hasMoreBefore: boolean;
+}
+
+export interface DeleteConversationRequest {
+  readonly conversationId: string;
+}

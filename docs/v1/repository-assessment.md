@@ -53,7 +53,7 @@ This is an inspection of existing behavior, not an implementation change. No dep
 
 ## Current Forward Path
 
-As of the active 2026-09-12 roadmap branch, `0.2` has been archived into the permanent `application-api` spec; `0.3`, `0.4`, `0.5`, `0.6`, `0.7`, and `0.8` are implemented in configuration/code/docs with their recorded evidence limits (see `docs/verification/`). The next product implementation minor is `0.9` conversation persistence. Remaining native WebView/P0 evidence for `0.3`, native GUI restart evidence for `0.4`, opt-in real llmster smoke evidence for `0.5`, a real successful start/stop cycle plus the P1 profile for `0.6`, qualified-candidate/P2 evidence for `0.7`, and a real llmster SSE sample plus the P2 active-stream profile for `0.8` belong to those minors' verification/archive, not to expanding `0.9`.
+As of the active 2026-09-13 roadmap branch, `0.2` has been archived into the permanent `application-api` spec; `0.3`, `0.4`, `0.5`, `0.6`, `0.7`, `0.8`, and `0.9` are implemented in configuration/code/docs with their recorded evidence limits (see `docs/verification/`). The next product implementation minor is `0.10` OS-secure credentials. Remaining native WebView/P0 evidence for `0.3`, native GUI restart evidence for `0.4`, opt-in real llmster smoke evidence for `0.5`, a real successful start/stop cycle plus the P1 profile for `0.6`, qualified-candidate/P2 evidence for `0.7`, a real llmster SSE sample plus the P2 active-stream profile for `0.8`, and a real native GUI restart plus a real llmster-backed persisted session for `0.9` belong to those minors' verification/archive, not to expanding `0.10`.
 
 ## Priority debts
 

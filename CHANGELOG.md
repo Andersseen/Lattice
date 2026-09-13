@@ -12,3 +12,4 @@ The project follows SemVer once releases begin. Lattice is currently pre-1.0 and
 - Added minimal Rust core and typed IPC smoke path.
 - Added Rust-owned generated application IPC contracts, runtime decoding, safe bridge error normalization, and latest-refresh ordering.
 - Added pnpm, Turborepo, Cargo workspaces, tests, CI, docs, ADRs, and OpenSpec setup.
+- Added provider-independent conversation persistence: a sibling SQLite `ConversationStore`, create/list/reopen/delete with pagination, bounded checkpointing of streaming replies, restart-to-interrupted reconciliation, and a History page alongside Chat.

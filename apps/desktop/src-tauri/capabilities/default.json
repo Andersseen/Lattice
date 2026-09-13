@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window capability for Lattice foundation metadata, settings, runtime discovery/lifecycle, local model management, and streaming chat.",
+  "description": "Main window capability for Lattice foundation metadata, settings, runtime discovery/lifecycle, local model management, streaming chat, and conversation persistence.",
   "windows": ["main"],
   "permissions": [
     "allow-get-app-info",
@@ -9,6 +9,7 @@
     "allow-model-runtime-discovery",
     "allow-model-runtime-lifecycle",
     "allow-local-models",
-    "allow-chat-streaming"
+    "allow-chat-streaming",
+    "allow-conversations"
   ]
 }

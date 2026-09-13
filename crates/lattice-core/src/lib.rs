@@ -1,4 +1,5 @@
 mod app_info;
+mod conversations;
 mod error;
 mod model_runtime;
 mod providers;
@@ -6,6 +7,13 @@ mod storage;
 mod wire;
 
 pub use app_info::{app_info, AppInfo, AppRuntime, BuildProfile, GET_APP_INFO_COMMAND};
+pub use conversations::{
+    derive_conversation_title, new_conversation_id, new_message_id, Conversation,
+    ConversationCursor, ConversationDetail, ConversationSummary, DeleteConversationRequest,
+    GenerationStatus, GetConversationRequest, ListConversationsRequest, ListConversationsResponse,
+    Message, CHECKPOINT_DELTA_BATCH, CHECKPOINT_MIN_INTERVAL, DELETE_CONVERSATION_COMMAND,
+    GET_CONVERSATION_COMMAND, LIST_CONVERSATIONS_COMMAND,
+};
 pub use error::AppError;
 pub use model_runtime::{
     list_loaded_models, CancelModelOperationRequest, CancelModelRuntimeOperationRequest,
@@ -23,11 +31,11 @@ pub use model_runtime::{
 pub use providers::{
     authorize_chat_request, new_chat_run_id, run_chat_stream, CancelChatStreamRequest,
     ChatFinishReason, ChatMessage, ChatRequest, ChatRole, ChatRunHandle, ChatStreamEvent,
-    CANCEL_CHAT_STREAM_COMMAND, MAX_OUTPUT_TOKENS, MAX_PROMPT_CHARS, ORCHESTRATOR_POLL_INTERVAL,
-    START_CHAT_STREAM_COMMAND, STREAM_DEADLINE,
+    StartChatStreamRequest, CANCEL_CHAT_STREAM_COMMAND, MAX_OUTPUT_TOKENS, MAX_PROMPT_CHARS,
+    ORCHESTRATOR_POLL_INTERVAL, START_CHAT_STREAM_COMMAND, STREAM_DEADLINE,
 };
 pub use storage::{
-    AppSettings, AppearancePreference, ResetAppSettingsRequest, SettingsStore,
+    AppSettings, AppearancePreference, ConversationStore, ResetAppSettingsRequest, SettingsStore,
     UpdateAppSettingsRequest, GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND,
     UPDATE_APP_SETTINGS_COMMAND,
 };

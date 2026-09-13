@@ -1,11 +1,12 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import type { AppError, ChatMessage, ChatRole, ChatStreamEvent } from '@lattice/types';
+import type { AppError, ChatMessage, ChatRole, ChatStreamEvent, Message } from '@lattice/types';
 
 import { AppApiService } from '../api/app-api.service';
-import { normalizeChatError } from '../api/app-wire';
+import { normalizeChatError, normalizeConversationError } from '../api/app-wire';
 import { ModelSlotStore } from './model-slot.store';
 
-export type ChatTranscriptEntryStatus = 'complete' | 'streaming' | 'cancelled' | 'failed';
+export type ChatTranscriptEntryStatus =
+  'complete' | 'streaming' | 'cancelled' | 'failed' | 'interrupted';
 
 export interface ChatTranscriptEntry {
   readonly role: ChatRole;
@@ -21,16 +22,45 @@ export class ChatStore {
   private readonly transcriptState = signal<readonly ChatTranscriptEntry[]>([]);
   private readonly errorState = signal<AppError | null>(null);
   private readonly streamingState = signal(false);
+  private readonly conversationIdState = signal<string | null>(null);
+  private readonly loadingState = signal(false);
   private activeRunId: string | null = null;
 
   readonly transcript = this.transcriptState.asReadonly();
   readonly error = this.errorState.asReadonly();
   readonly isStreaming = this.streamingState.asReadonly();
+  readonly conversationId = this.conversationIdState.asReadonly();
+  readonly isLoadingConversation = this.loadingState.asReadonly();
   readonly loadedModelKey = computed(() => {
     const ownership = this.modelSlotStore.status()?.ownership;
     return ownership?.state === 'owned' ? ownership.modelKey : null;
   });
   readonly canSend = computed(() => !this.streamingState() && this.loadedModelKey() !== null);
+
+  /** Clears in-memory state so the next `send` starts a brand-new conversation. */
+  startNewConversation(): void {
+    this.conversationIdState.set(null);
+    this.transcriptState.set([]);
+    this.errorState.set(null);
+    this.streamingState.set(false);
+    this.activeRunId = null;
+  }
+
+  /** Hydrates the transcript from a previously persisted conversation ("reopen"). */
+  async loadConversation(conversationId: string): Promise<void> {
+    this.startNewConversation();
+    this.conversationIdState.set(conversationId);
+    this.loadingState.set(true);
+
+    try {
+      const detail = await this.appApi.getConversation({ conversationId });
+      this.transcriptState.set(detail.messages.map(toTranscriptEntry));
+    } catch (error: unknown) {
+      this.errorState.set(normalizeConversationError(error));
+    } finally {
+      this.loadingState.set(false);
+    }
+  }
 
   async send(text: string): Promise<void> {
     const trimmed = text.trim();
@@ -50,10 +80,12 @@ export class ChatStore {
 
     try {
       const handle = await this.appApi.startChatStream(
+        this.conversationIdState(),
         { modelKey, messages: [...priorMessages, { role: 'user', text: trimmed }] },
         (event) => this.applyEvent(event)
       );
       this.activeRunId = handle.runId;
+      this.conversationIdState.set(handle.conversationId);
     } catch (error: unknown) {
       this.streamingState.set(false);
       this.errorState.set(normalizeChatError(error));
@@ -114,4 +146,12 @@ export class ChatStore {
 
 function toChatMessage(entry: ChatTranscriptEntry): ChatMessage {
   return { role: entry.role, text: entry.text };
+}
+
+function toTranscriptEntry(message: Message): ChatTranscriptEntry {
+  return {
+    role: message.role,
+    text: message.text,
+    status: message.status === 'streaming' ? 'interrupted' : message.status
+  };
 }

@@ -120,6 +120,24 @@ impl AppError {
             correlation_id: None,
         }
     }
+
+    pub const fn conversation_not_found(message: &'static str) -> Self {
+        Self {
+            code: "conversation.not_found",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn conversation_conflict(message: &'static str) -> Self {
+        Self {
+            code: "conversation.conflict",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
 }
 
 #[cfg(test)]

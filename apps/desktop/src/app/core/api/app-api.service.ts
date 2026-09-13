@@ -11,6 +11,11 @@ import {
   type ChatRunHandle,
   type ChatStreamEvent,
   type ConfigureModelRuntimeRequest,
+  type ConversationDetail,
+  type DeleteConversationRequest,
+  type GetConversationRequest,
+  type ListConversationsRequest,
+  type ListConversationsResponse,
   type LoadModelRequest,
   type ModelRuntimeStatus,
   type ModelSlotStatus,
@@ -27,10 +32,13 @@ import {
   decodeAppSettings,
   decodeChatRunHandle,
   decodeChatStreamEvent,
+  decodeConversationDetail,
+  decodeListConversationsResponse,
   decodeModelRuntimeStatus,
   decodeModelSlotStatus,
   normalizeAppError,
   normalizeChatError,
+  normalizeConversationError,
   normalizeModelRuntimeError,
   normalizeModelSlotError,
   normalizeSettingsError
@@ -38,6 +46,11 @@ import {
 import { getWebSettings, resetWebSettings, updateWebSettings } from './app-settings-fallback';
 import { createWebFallbackInfo } from './app-info-fallback';
 import { cancelWebChatStream, startWebChatStream } from './chat-fallback';
+import {
+  deleteWebConversation,
+  getWebConversation,
+  listWebConversations
+} from './conversations-fallback';
 import {
   cancelWebModelRuntimeOperation,
   configureWebModelRuntime,
@@ -277,17 +290,21 @@ export class AppApiService {
   }
 
   /**
-   * `onEvent` is called for every event of the run, including its one
-   * terminal event; a malformed single channel payload is skipped rather
-   * than thrown (see `decodeChatStreamEvent`), so later valid events for
-   * the same run keep arriving.
+   * `conversationId` is `null` to start a new conversation, or an existing
+   * conversation's ID to continue it; the response's `conversationId` names
+   * the resolved conversation either way. `onEvent` is called for every
+   * event of the run, including its one terminal event; a malformed single
+   * channel payload is skipped rather than thrown (see
+   * `decodeChatStreamEvent`), so later valid events for the same run keep
+   * arriving.
    */
   async startChatStream(
-    request: ChatRequest,
+    conversationId: string | null,
+    chat: ChatRequest,
     onEvent: (event: ChatStreamEvent) => void
   ): Promise<ChatRunHandle> {
     if (!isTauriRuntime()) {
-      return startWebChatStream(request, onEvent);
+      return startWebChatStream(conversationId, chat, onEvent);
     }
 
     try {
@@ -302,7 +319,7 @@ export class AppApiService {
 
       return decodeChatRunHandle(
         await invoke<unknown>(APP_COMMANDS.startChatStream, {
-          request,
+          request: { conversationId, chat },
           channel
         })
       );
@@ -324,6 +341,56 @@ export class AppApiService {
       });
     } catch (error: unknown) {
       throw normalizeChatError(error);
+    }
+  }
+
+  async listConversations(request: ListConversationsRequest): Promise<ListConversationsResponse> {
+    if (!isTauriRuntime()) {
+      return listWebConversations(request);
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeListConversationsResponse(
+        await invoke<unknown>(APP_COMMANDS.listConversations, {
+          request
+        })
+      );
+    } catch (error: unknown) {
+      throw normalizeConversationError(error);
+    }
+  }
+
+  async getConversation(request: GetConversationRequest): Promise<ConversationDetail> {
+    if (!isTauriRuntime()) {
+      return getWebConversation(request);
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeConversationDetail(
+        await invoke<unknown>(APP_COMMANDS.getConversation, {
+          request
+        })
+      );
+    } catch (error: unknown) {
+      throw normalizeConversationError(error);
+    }
+  }
+
+  async deleteConversation(request: DeleteConversationRequest): Promise<void> {
+    if (!isTauriRuntime()) {
+      deleteWebConversation(request);
+      return;
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke<void>(APP_COMMANDS.deleteConversation, {
+        request
+      });
+    } catch (error: unknown) {
+      throw normalizeConversationError(error);
     }
   }
 }

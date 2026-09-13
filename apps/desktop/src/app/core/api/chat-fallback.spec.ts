@@ -11,6 +11,7 @@ import {
   resetWebChatStreamForTest,
   startWebChatStream
 } from './chat-fallback';
+import { resetWebConversationsForTest } from './conversations-fallback';
 
 const MODEL_KEY = 'qwen/qwen2.5-0.5b-instruct';
 
@@ -19,6 +20,7 @@ describe('chat streaming browser fallback', () => {
     resetWebModelRuntimeStatusForTest();
     resetWebModelSlotStatusForTest();
     resetWebChatStreamForTest();
+    resetWebConversationsForTest();
     vi.useFakeTimers();
   });
 
@@ -38,6 +40,7 @@ describe('chat streaming browser fallback', () => {
   it('refuses a request naming a model that is not owned and loaded', () => {
     expect(() =>
       startWebChatStream(
+        null,
         { modelKey: MODEL_KEY, messages: [{ role: 'user', text: 'hi' }] },
         () => {}
       )
@@ -49,6 +52,7 @@ describe('chat streaming browser fallback', () => {
     const events: ChatStreamEvent[] = [];
 
     const handle = startWebChatStream(
+      null,
       { modelKey: MODEL_KEY, messages: [{ role: 'user', text: 'hi' }] },
       (event) => events.push(event)
     );
@@ -65,10 +69,15 @@ describe('chat streaming browser fallback', () => {
 
   it('refuses a second run while one is already streaming', async () => {
     loadModel();
-    startWebChatStream({ modelKey: MODEL_KEY, messages: [{ role: 'user', text: 'hi' }] }, () => {});
+    startWebChatStream(
+      null,
+      { modelKey: MODEL_KEY, messages: [{ role: 'user', text: 'hi' }] },
+      () => {}
+    );
 
     expect(() =>
       startWebChatStream(
+        null,
         { modelKey: MODEL_KEY, messages: [{ role: 'user', text: 'hi' }] },
         () => {}
       )
@@ -82,6 +91,7 @@ describe('chat streaming browser fallback', () => {
     const events: ChatStreamEvent[] = [];
 
     const handle = startWebChatStream(
+      null,
       { modelKey: MODEL_KEY, messages: [{ role: 'user', text: 'hi' }] },
       (event) => events.push(event)
     );
