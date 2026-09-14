@@ -1,11 +1,172 @@
 .chat {
   display: grid;
-  gap: 1.5rem;
+  grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
+  gap: 1px;
+  width: min(100%, 88rem);
+  margin: 0 auto;
+  min-height: calc(100vh - 2.5rem);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-border);
 }
 
-.heading {
+.chat-sidebar,
+.chat-main {
+  min-width: 0;
+  background: var(--color-surface);
+}
+
+.chat-sidebar {
   display: grid;
-  gap: 0.5rem;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.conversation-section {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  min-height: 0;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.section-heading a {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.conversation-list {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation-list li:not(.conversation-group) {
+  position: relative;
+}
+
+.conversation-group {
+  margin-top: 0.4rem;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.conversation-button {
+  display: grid;
+  gap: 0.18rem;
+  width: 100%;
+  min-height: 3.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  color: var(--color-text);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  padding: 0.65rem 2.5rem 0.65rem 0.7rem;
+  text-align: left;
+}
+
+.conversation-button:hover,
+.conversation-button:focus-visible,
+.conversation-button.selected {
+  border-color: var(--color-border);
+  background: var(--color-surface-strong);
+}
+
+.conversation-button:disabled,
+.delete-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.conversation-title,
+.conversation-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-title {
+  font-weight: 700;
+}
+
+.conversation-meta,
+.side-status {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.delete-button {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.35rem;
+  min-height: 2rem;
+  border: 0;
+  border-radius: 0.35rem;
+  color: var(--color-muted);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.delete-button:hover,
+.delete-button:focus-visible {
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.delete-confirm {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.25rem 0.3rem 0;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
+.delete-confirm button {
+  min-height: 1.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.35rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  cursor: pointer;
+  font: inherit;
+}
+
+.chat-main {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 4.25rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .eyebrow {
@@ -17,34 +178,82 @@
 }
 
 h1,
+h2,
 p {
   margin: 0;
 }
 
 h1 {
-  font-size: 2rem;
+  font-size: 1.45rem;
   line-height: 1.15;
 }
 
+h2 {
+  font-size: 0.9rem;
+}
+
 .status-text {
+  padding: 0.75rem 1.25rem 0;
   color: var(--color-muted);
 }
 
+.model-pill {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.45rem;
+  max-width: min(26rem, 52vw);
+  min-height: 2rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-muted);
+  padding: 0.3rem 0.65rem;
+}
+
+.model-pill span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--color-muted);
+}
+
+.model-pill.ready span {
+  background: #1f8a5b;
+}
+
 .notice {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.75rem 1.25rem 0;
   padding: 1rem;
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
-  background: var(--color-surface);
+  background: var(--color-surface-strong);
 }
 
 .transcript {
-  display: grid;
-  gap: 0.75rem;
-  min-height: 12rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-height: 0;
+  overflow: auto;
   padding: 1.25rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  background: var(--color-surface);
+  scroll-behavior: smooth;
+}
+
+.empty-state {
+  display: grid;
+  place-items: start;
+  align-content: center;
+  gap: 0.65rem;
+  min-height: 16rem;
+  max-width: 31rem;
+  color: var(--color-muted);
+}
+
+.empty-state h2 {
+  color: var(--color-text);
+  font-size: 1.2rem;
 }
 
 .message {
@@ -83,22 +292,37 @@ h1 {
 
 .composer {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-background));
 }
 
 .composer-label {
   display: grid;
   gap: 0.4rem;
+  min-width: 0;
 }
 
-.composer-label span {
+.composer-label span,
+.composer-reason {
   color: var(--color-muted);
   font-size: 0.85rem;
   font-weight: 700;
 }
 
+.composer-reason {
+  grid-column: 1 / -1;
+  order: 3;
+  font-weight: 500;
+}
+
 textarea {
   width: 100%;
+  min-height: 4.2rem;
+  max-height: 12rem;
   resize: vertical;
   border: 1px solid var(--color-border-strong);
   border-radius: 0.45rem;
@@ -114,6 +338,20 @@ textarea {
 }
 
 @media (max-width: 56rem) {
+  .chat {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .chat-sidebar {
+    max-height: 16rem;
+  }
+
+  .chat-main {
+    min-height: 38rem;
+  }
+
   .message,
   .message.assistant {
     max-width: 100%;
@@ -125,5 +363,9 @@ textarea {
   .actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .composer {
+    grid-template-columns: 1fr;
   }
 }

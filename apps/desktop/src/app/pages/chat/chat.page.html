@@ -1,67 +1,156 @@
 <section class="chat" aria-labelledby="chat-title">
-  <div class="heading">
-    <p class="eyebrow">Local streaming chat</p>
-    <h1 id="chat-title">Chat</h1>
-    <volt-button type="button" variant="outline" size="sm" (click)="newChat()"
-      >New chat</volt-button
-    >
-  </div>
+  <aside class="chat-sidebar" aria-label="Conversations">
+    <volt-button type="button" size="md" [disabled]="isStreaming()" (click)="newChat()">
+      New chat
+    </volt-button>
 
-  @if (isLoadingConversation()) {
-  <p class="status-text">Loading conversation.</p>
-  } @if (loadedModelKey(); as modelKey) {
-  <p class="status-text">Talking to <strong>{{ modelKey }}</strong>.</p>
-  } @else {
-  <div class="notice" role="alert">
-    <p>Load a model on the Models page before starting a chat.</p>
-  </div>
-  } @if (error(); as chatError) {
-  <div class="notice" role="alert">
-    <p>{{ chatError.message }}</p>
-  </div>
-  }
+    <div class="conversation-section">
+      <div class="section-heading">
+        <h2>Recent</h2>
+        <a routerLink="/history">Full history</a>
+      </div>
 
-  <section class="transcript" aria-label="Conversation" aria-live="polite">
-    @if (transcript().length === 0) {
-    <p class="status-text">No messages yet. Say hello.</p>
-    } @for (entry of transcript(); track $index) {
-    <article class="message" [class.assistant]="entry.role === 'assistant'">
-      <span class="role">{{ entry.role }}</span>
-      <p class="text">
-        {{ entry.text }}@if (entry.status === 'streaming') {<span class="cursor">▍</span>}
-      </p>
-      @if (entry.status === 'cancelled') {
-      <span class="status-tag">Cancelled</span>
-      } @if (entry.status === 'failed') {
-      <span class="status-tag">Failed</span>
-      } @if (entry.status === 'interrupted') {
-      <span class="status-tag">Interrupted — not resumed automatically</span>
-      }
-    </article>
-    }
-  </section>
-
-  <form class="composer" (submit)="$event.preventDefault(); send()">
-    <label class="composer-label">
-      <span>Message</span>
-      <textarea
-        rows="3"
-        placeholder="Send a message"
-        [value]="draft()"
-        [disabled]="!canSend()"
-        (input)="setDraft($event)"
-      ></textarea>
-    </label>
-
-    <div class="actions">
-      <volt-button type="submit" variant="outline" size="md" [disabled]="!canSend()">
-        {{ isStreaming() ? 'Streaming' : 'Send' }}
-      </volt-button>
-      @if (isStreaming()) {
-      <volt-button type="button" variant="outline" size="sm" (click)="cancel()">
-        Cancel
-      </volt-button>
+      @if (conversationsError(); as historyError) {
+      <p class="side-status" role="alert">{{ historyError.message }}</p>
+      } @else if (isLoadingConversations() && conversations().length === 0) {
+      <p class="side-status">Loading conversations.</p>
+      } @else if (conversations().length === 0) {
+      <p class="side-status">No conversations yet.</p>
+      } @else {
+      <ol class="conversation-list">
+        @for (conversation of conversations(); track conversation.id; let index = $index) { @if
+        (conversationGroup(index, conversations()); as group) {
+        <li class="conversation-group">{{ group }}</li>
+        }
+        <li>
+          <button
+            type="button"
+            class="conversation-button"
+            [class.selected]="activeConversationId() === conversation.id"
+            [disabled]="isStreaming()"
+            (click)="openConversation(conversation.id)"
+          >
+            <span class="conversation-title">{{ conversation.title }}</span>
+            <span class="conversation-meta">
+              {{ conversationTime(conversation) }} · {{ conversation.messageCount }} message{{
+              conversation.messageCount === 1 ? '' : 's' }}
+            </span>
+          </button>
+          @if (pendingDeleteId() === conversation.id) {
+          <div class="delete-confirm" role="group" aria-label="Confirm conversation deletion">
+            <span>Delete?</span>
+            <button type="button" (click)="deleteConversation(conversation.id, $event)">Yes</button>
+            <button type="button" (click)="cancelDelete($event)">No</button>
+          </div>
+          } @else {
+          <button
+            type="button"
+            class="delete-button"
+            [disabled]="deletingConversationId() === conversation.id || isStreaming()"
+            [attr.aria-label]="'Delete ' + conversation.title"
+            (click)="requestDelete(conversation.id, $event)"
+          >
+            Delete
+          </button>
+          }
+        </li>
+        }
+      </ol>
       }
     </div>
-  </form>
+  </aside>
+
+  <div class="chat-main">
+    <header class="chat-header">
+      <div>
+        <p class="eyebrow">Local AI</p>
+        <h1 id="chat-title">Chat</h1>
+      </div>
+      <div class="model-pill" [class.ready]="loadedModelKey() !== null" aria-live="polite">
+        <span aria-hidden="true"></span>
+        {{ loadedModelKey() ?? 'No model loaded' }}
+      </div>
+    </header>
+
+    @if (isLoadingConversation()) {
+    <p class="status-text">Opening conversation.</p>
+    } @if (error(); as chatError) {
+    <div class="notice" role="alert">
+      <strong>Chat is paused.</strong>
+      <p>{{ chatError.message }}</p>
+    </div>
+    }
+
+    <section
+      #transcriptViewport
+      class="transcript"
+      aria-label="Conversation"
+      aria-live="polite"
+      (scroll)="onTranscriptScroll($event)"
+    >
+      @if (readiness(); as state) {
+      <div class="empty-state">
+        <h2>{{ state.title }}</h2>
+        <p>{{ state.message }}</p>
+        @switch (state.action) { @case ('configure') {
+        <volt-button type="button" routerLink="/models" size="md">Configure runtime</volt-button>
+        } @case ('start') {
+        <volt-button type="button" size="md" [disabled]="!canStart()" (click)="startRuntime()">
+          {{ isStarting() ? 'Starting' : 'Start runtime' }}
+        </volt-button>
+        } @case ('model') {
+        <volt-button type="button" routerLink="/models" size="md">Choose model</volt-button>
+        } }
+      </div>
+      } @else if (transcript().length === 0) {
+      <div class="empty-state">
+        <h2>Ready when you are.</h2>
+        <p>Start a local conversation with the loaded model.</p>
+      </div>
+      } @for (entry of transcript(); track $index) {
+      <article class="message" [class.assistant]="entry.role === 'assistant'">
+        <span class="role">{{ entry.role === 'assistant' ? 'Lattice' : 'You' }}</span>
+        <p class="text">
+          {{ entry.text }}@if (entry.status === 'streaming') {<span class="cursor">▍</span>}
+        </p>
+        @if (entry.status === 'cancelled') {
+        <span class="status-tag">Cancelled</span>
+        } @if (entry.status === 'failed') {
+        <span class="status-tag">Failed</span>
+        } @if (entry.status === 'interrupted') {
+        <span class="status-tag">Interrupted; not resumed automatically</span>
+        }
+      </article>
+      }
+    </section>
+
+    <form class="composer" (submit)="$event.preventDefault(); send()">
+      <label class="composer-label">
+        <span>Message</span>
+        <textarea
+          rows="3"
+          [placeholder]="composerPlaceholder()"
+          [value]="draft()"
+          [disabled]="!canSend()"
+          [attr.aria-describedby]="canSend() ? null : 'composer-disabled-reason'"
+          (input)="setDraft($event)"
+          (keydown)="onComposerKeydown($event)"
+        ></textarea>
+      </label>
+
+      @if (!canSend()) {
+      <p id="composer-disabled-reason" class="composer-reason">{{ disabledReason() }}</p>
+      }
+
+      <div class="actions">
+        @if (isStreaming()) {
+        <volt-button type="button" variant="outline" size="md" (click)="cancel()">Stop</volt-button>
+        } @else {
+        <volt-button type="submit" size="md" [disabled]="!canSend() || draft().trim().length === 0">
+          Send
+        </volt-button>
+        }
+      </div>
+    </form>
+  </div>
 </section>

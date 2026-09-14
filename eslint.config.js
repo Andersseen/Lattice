@@ -11,6 +11,8 @@ export default [
       '**/node_modules/**',
       '**/target/**',
       '**/coverage/**',
+      '**/test-results/**',
+      '**/playwright-report/**',
       '**/.angular/**',
       '**/src-tauri/gen/**'
     ]

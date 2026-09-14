@@ -10,6 +10,7 @@
   --color-border: #dce4df;
   --color-border-strong: #b6c5bd;
   --color-accent: #315f55;
+  --color-accent-contrast: #ffffff;
   --color-accent-soft: #d3e5df;
   font-family:
     Inter,
@@ -31,6 +32,7 @@
   --color-border: #dce4df;
   --color-border-strong: #b6c5bd;
   --color-accent: #315f55;
+  --color-accent-contrast: #ffffff;
   --color-accent-soft: #d3e5df;
 }
 
@@ -44,6 +46,7 @@
     --color-border: #2a3832;
     --color-border-strong: #405149;
     --color-accent: #8fd0bf;
+    --color-accent-contrast: #0b1714;
     --color-accent-soft: #244940;
   }
 }
@@ -58,6 +61,7 @@
   --color-border: #2a3832;
   --color-border-strong: #405149;
   --color-accent: #8fd0bf;
+  --color-accent-contrast: #0b1714;
   --color-accent-soft: #244940;
 }
 
@@ -76,6 +80,69 @@ body {
 button,
 a {
   -webkit-tap-highlight-color: transparent;
+}
+
+button[ngpbutton] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: max-content;
+  min-height: 2.35rem;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 750;
+  line-height: 1;
+  padding: 0 0.9rem;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+button[ngpbutton][data-size='sm'] {
+  min-height: 2rem;
+  padding-inline: 0.7rem;
+  font-size: 0.82rem;
+}
+
+button[ngpbutton][data-size='md'] {
+  min-height: 2.45rem;
+}
+
+button[ngpbutton][data-variant='outline'] {
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+button[ngpbutton]:hover:not(:disabled):not([data-disabled]) {
+  transform: translateY(-1px);
+}
+
+button[ngpbutton][data-variant='outline']:hover:not(:disabled):not([data-disabled]) {
+  border-color: var(--color-accent);
+  background: var(--color-surface-strong);
+}
+
+button[ngpbutton]:not([data-variant='outline']):hover:not(:disabled):not([data-disabled]) {
+  background: color-mix(in srgb, var(--color-accent) 86%, #000000);
+}
+
+button[ngpbutton]:disabled,
+button[ngpbutton][data-disabled] {
+  cursor: default;
+  opacity: 0.48;
+  transform: none;
 }
 
 :focus-visible {

@@ -1,31 +1,24 @@
 <div class="shell">
-  <header class="topbar">
-    <a class="brand" routerLink="/" aria-label="Lattice home">
+  <aside class="sidebar" aria-label="Primary">
+    <a class="brand" routerLink="/chat" aria-label="Lattice chat">
       <span class="brand-mark" aria-hidden="true">
         <lmn-sparkles [size]="16" />
       </span>
       <span>Lattice</span>
     </a>
 
-    <nav class="nav" aria-label="Primary">
-      <a
-        routerLink="/"
-        routerLinkActive="active"
-        [routerLinkActiveOptions]="{ exact: true }"
-        qzTooltip="Foundation overview"
-        >Home</a
-      >
-      <a routerLink="/system" routerLinkActive="active" qzTooltip="Runtime boundary">System</a>
-      <a routerLink="/models" routerLinkActive="active" qzTooltip="Model runtime status">Models</a>
-      <a routerLink="/chat" routerLinkActive="active" qzTooltip="Local streaming chat">Chat</a>
-      <a routerLink="/history" routerLinkActive="active" qzTooltip="Conversation history"
-        >History</a
-      >
-      <a routerLink="/settings" routerLinkActive="active" qzTooltip="Application settings"
-        >Settings</a
-      >
+    <nav class="nav">
+      <a routerLink="/chat" routerLinkActive="active">Chat</a>
+      <a routerLink="/models" routerLinkActive="active">Models</a>
+      <span class="nav-separator" aria-hidden="true"></span>
+      <a routerLink="/settings" routerLinkActive="active">Settings</a>
     </nav>
-  </header>
+
+    <a class="global-status" routerLink="/models" [attr.data-tone]="statusTone()">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span>{{ statusLabel() }}</span>
+    </a>
+  </aside>
 
   <main class="content" tabindex="-1">
     <ng-content />

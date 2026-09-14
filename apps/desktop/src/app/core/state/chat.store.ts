@@ -3,6 +3,7 @@ import type { AppError, ChatMessage, ChatRole, ChatStreamEvent, Message } from '
 
 import { AppApiService } from '../api/app-api.service';
 import { normalizeChatError, normalizeConversationError } from '../api/app-wire';
+import { ConversationsStore } from './conversations.store';
 import { ModelSlotStore } from './model-slot.store';
 
 export type ChatTranscriptEntryStatus =
@@ -18,6 +19,7 @@ export interface ChatTranscriptEntry {
 export class ChatStore {
   private readonly appApi = inject(AppApiService);
   private readonly modelSlotStore = inject(ModelSlotStore);
+  private readonly conversationsStore = inject(ConversationsStore);
 
   private readonly transcriptState = signal<readonly ChatTranscriptEntry[]>([]);
   private readonly errorState = signal<AppError | null>(null);
@@ -86,6 +88,7 @@ export class ChatStore {
       );
       this.activeRunId = handle.runId;
       this.conversationIdState.set(handle.conversationId);
+      void this.conversationsStore.load();
     } catch (error: unknown) {
       this.streamingState.set(false);
       this.errorState.set(normalizeChatError(error));
@@ -106,6 +109,17 @@ export class ChatStore {
   }
 
   private applyEvent(event: ChatStreamEvent): void {
+    if (this.activeRunId === null) {
+      if (event.kind === 'started') {
+        this.activeRunId = event.runId;
+      }
+      return;
+    }
+
+    if (event.runId !== this.activeRunId) {
+      return;
+    }
+
     switch (event.kind) {
       case 'started':
         return;
@@ -131,6 +145,7 @@ export class ChatStore {
   private finishRun(): void {
     this.activeRunId = null;
     this.streamingState.set(false);
+    void this.conversationsStore.load();
   }
 
   private updateLastEntry(update: (entry: ChatTranscriptEntry) => ChatTranscriptEntry): void {

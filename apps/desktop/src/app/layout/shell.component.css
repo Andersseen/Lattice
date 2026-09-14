@@ -1,20 +1,22 @@
 .shell {
+  display: grid;
+  grid-template-columns: 14.5rem minmax(0, 1fr);
   min-height: 100vh;
   color: var(--color-text);
-  background:
-    linear-gradient(180deg, rgba(63, 81, 181, 0.07), transparent 18rem), var(--color-background);
+  background: var(--color-background);
 }
 
-.topbar {
+.sidebar {
+  position: sticky;
+  top: 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  min-height: 4rem;
-  padding: 0 1.5rem;
-  border-bottom: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
-  backdrop-filter: blur(12px);
+  flex-direction: column;
+  gap: 1.25rem;
+  height: 100vh;
+  min-height: 32rem;
+  padding: 1rem;
+  border-right: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-background));
 }
 
 .brand {
@@ -38,11 +40,14 @@
 }
 
 .nav {
-  display: flex;
-  gap: 0.25rem;
+  display: grid;
+  gap: 0.2rem;
 }
 
 .nav a {
+  display: flex;
+  align-items: center;
+  min-height: 2.5rem;
   border-radius: 0.45rem;
   color: var(--color-muted);
   padding: 0.55rem 0.75rem;
@@ -56,25 +61,85 @@
   background: var(--color-surface-strong);
 }
 
-.content {
-  width: min(100%, 72rem);
-  margin: 0 auto;
-  padding: 2rem 1.5rem 3rem;
+.nav-separator {
+  height: 1px;
+  margin: 0.55rem 0.75rem;
+  background: var(--color-border);
 }
 
-@media (max-width: 42rem) {
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-    padding-block: 1rem;
+.global-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: auto;
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  padding: 0.65rem 0.75rem;
+  text-decoration: none;
+}
+
+.global-status span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-status:hover,
+.global-status:focus-visible {
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+}
+
+.status-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--color-muted);
+}
+
+.global-status[data-tone='ready'] .status-dot {
+  background: #1f8a5b;
+}
+
+.global-status[data-tone='partial'] .status-dot {
+  background: #a56a00;
+}
+
+.content {
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  padding: 1.25rem;
+  overflow-x: hidden;
+}
+
+@media (max-width: 48rem) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    min-height: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
   }
 
   .nav {
-    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .nav a {
-    flex: 1;
+    justify-content: center;
     text-align: center;
+  }
+
+  .nav-separator {
+    display: none;
   }
 }
