@@ -53,7 +53,7 @@ Qualification records must name exact model ID/revision, format, quantization, c
 - [ ] Persistence changes include forward migration and failure/backup behavior; old data is never silently reset. Version metadata, changelog and compatibility notes agree when cutting a release.
 - [ ] Specs, relevant ADRs, architecture/support documentation and verification evidence are reconciled. Archive only completed behavior and keep the capability status honest.
 
-Full baseline check: `pnpm check`, plus `pnpm build:web`, relevant Playwright and native build checks as required by the scope. `pnpm check` does not currently include E2E, native build or OpenSpec validation. Do not call it full desktop certification. Documentation-only changes use formatting, link/reference and scope consistency checks rather than new implementation tests.
+Full baseline check: `bun run check`, plus `bun run build:web`, relevant Playwright and native build checks as required by the scope. `bun run check` does not currently include E2E, native build or OpenSpec validation. Do not call it full desktop certification. Documentation-only changes use formatting, link/reference and scope consistency checks rather than new implementation tests.
 
 ## Performance gates
 

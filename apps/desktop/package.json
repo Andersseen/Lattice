@@ -9,7 +9,8 @@
     "build": "ng build",
     "build:web": "ng build",
     "tauri:build": "tauri build --no-bundle",
-    "lint": "pnpm --workspace-root exec eslint apps/desktop",
+    "lint": "biome check .",
+    "lint:angular": "eslint .",
     "typecheck": "ng build --configuration development --no-progress && tsc -p tsconfig.spec.json --noEmit",
     "test": "vitest run",
     "e2e": "playwright test"

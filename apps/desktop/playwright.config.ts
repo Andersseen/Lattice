@@ -11,7 +11,7 @@ export default defineConfig({
     trace: 'on-first-retry'
   },
   webServer: {
-    command: 'pnpm --filter @lattice/desktop dev:web',
+    command: 'bun --filter @lattice/desktop dev:web',
     url: 'http://127.0.0.1:1420',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000

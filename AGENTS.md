@@ -14,14 +14,14 @@ This repository is the Lattice foundation. Treat it as a lightweight desktop app
 ## Commands
 
 ```bash
-pnpm dev
-pnpm build
-pnpm build:web
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm e2e
-pnpm check
+bun run dev
+bun run build
+bun run build:web
+bun run lint
+bun run typecheck
+bun run test
+bun run e2e
+bun run check
 cargo fmt --all --check
 cargo check --workspace
 cargo clippy --workspace --all-targets -- -D warnings
@@ -37,6 +37,13 @@ cargo test --workspace
 - Use modern Angular control flow.
 - Prefer feature/capability folders over global dumping grounds.
 - Do not introduce NgModules, NgRx, Redux, or global state managers without an accepted spec.
+
+## UI System
+
+- Use Volt UI as the default source for Angular UI atoms.
+- Prefer copied `ui-*` / `Ui*` Volt UI components over hand-rolled buttons, inputs, cards, badges, form controls, tabs, tables, overlays, skeletons, separators, progress indicators, and similar primitives.
+- Query the Volt UI MCP server or load the `volt-ui` skill before inventing a UI atom or guessing component inputs/selectors.
+- Create local UI primitives only when Volt UI does not provide the atom or the requirement cannot be expressed by composing Volt UI components.
 
 ## Rust Conventions
 

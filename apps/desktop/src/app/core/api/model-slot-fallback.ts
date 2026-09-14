@@ -1,6 +1,6 @@
 import type {
-  LoadModelRequest,
   LoadedModelObservation,
+  LoadModelRequest,
   ModelDescriptor,
   ModelOperationOutcome,
   ModelSlotStatus,

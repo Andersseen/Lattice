@@ -11,4 +11,4 @@
 - [x] Add scheduled and manifest/lockfile-triggered JavaScript/Rust dependency advisory checks with documented severity/exception policy.
 - [ ] Capture P0 release idle resource evidence: five-minute settled idle, three launch/exit cycles, memory, CPU, child processes, hardware/OS/build metadata, and uncertainty.
 - [ ] Update permanent `desktop-security` spec, ADR, security policy, verification record, capability map, and changelog only to match verified behavior.
-- [ ] Run required checks for the candidate commit: OpenSpec validation, `pnpm check`, `pnpm build:web`, relevant Playwright/native smoke, `cargo fmt --all --check`, `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace`.
+- [ ] Run required checks for the candidate commit: OpenSpec validation, `bun run check`, `bun run build:web`, relevant Playwright/native smoke, `cargo fmt --all --check`, `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace`.

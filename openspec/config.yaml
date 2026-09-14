@@ -2,7 +2,7 @@ schema: spec-driven
 
 context: |
   Lattice is a lightweight, local-first, provider-agnostic desktop application.
-  Stack: Tauri 2, Rust stable, Angular 22 zoneless, pnpm workspaces, Turborepo, Cargo workspace, Vitest, Playwright.
+  Stack: Tauri 2, Rust stable, Angular 22 zoneless, Bun workspaces, Turborepo, Cargo workspace, Vitest, Playwright.
   Current status: foundation only. Do not implement future agent/model/MCP/skills/memory/task/workspace features without an accepted OpenSpec change.
 
 rules:

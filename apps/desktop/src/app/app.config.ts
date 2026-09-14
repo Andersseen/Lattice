@@ -1,5 +1,5 @@
-import { provideZonelessChangeDetection } from '@angular/core';
 import type { ApplicationConfig } from '@angular/core';
+import { provideZonelessChangeDetection } from '@angular/core';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideVoltTheme } from '@voltui/components';
 import { provideMovement } from 'angular-movement';

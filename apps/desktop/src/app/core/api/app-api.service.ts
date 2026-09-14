@@ -1,36 +1,37 @@
 import { Injectable } from '@angular/core';
-import {
-  APP_COMMANDS,
-  type AppError,
-  type AppInfo,
-  type AppSettings,
-  type CancelChatStreamRequest,
-  type CancelModelOperationRequest,
-  type CancelModelRuntimeOperationRequest,
-  type ChatRequest,
-  type ChatRunHandle,
-  type ChatStreamEvent,
-  type ConfigureModelRuntimeRequest,
-  type ConversationDetail,
-  type CreateCredentialRequest,
-  type CredentialRef,
-  type DeleteConversationRequest,
-  type DeleteCredentialRequest,
-  type GetConversationRequest,
-  type ListConversationsRequest,
-  type ListConversationsResponse,
-  type LoadModelRequest,
-  type ModelRuntimeStatus,
-  type ModelSlotStatus,
-  type ProbeModelRuntimeRequest,
-  type ReplaceCredentialRequest,
-  type ResetAppSettingsRequest,
-  type StartModelRuntimeRequest,
-  type StopModelRuntimeRequest,
-  type UnloadModelRequest,
-  type UpdateAppSettingsRequest
+import type {
+  AppError,
+  AppInfo,
+  AppSettings,
+  CancelChatStreamRequest,
+  CancelModelOperationRequest,
+  CancelModelRuntimeOperationRequest,
+  ChatRequest,
+  ChatRunHandle,
+  ChatStreamEvent,
+  ConfigureModelRuntimeRequest,
+  ConversationDetail,
+  CreateCredentialRequest,
+  CredentialRef,
+  DeleteConversationRequest,
+  DeleteCredentialRequest,
+  GetConversationRequest,
+  ListConversationsRequest,
+  ListConversationsResponse,
+  LoadModelRequest,
+  ModelRuntimeStatus,
+  ModelSlotStatus,
+  ProbeModelRuntimeRequest,
+  ReplaceCredentialRequest,
+  ResetAppSettingsRequest,
+  StartModelRuntimeRequest,
+  StopModelRuntimeRequest,
+  UnloadModelRequest,
+  UpdateAppSettingsRequest
 } from '@lattice/types';
-
+import { APP_COMMANDS } from '@lattice/types';
+import { createWebFallbackInfo } from './app-info-fallback';
+import { getWebSettings, resetWebSettings, updateWebSettings } from './app-settings-fallback';
 import {
   decodeAppInfo,
   decodeAppSettings,
@@ -50,8 +51,6 @@ import {
   normalizeModelSlotError,
   normalizeSettingsError
 } from './app-wire';
-import { getWebSettings, resetWebSettings, updateWebSettings } from './app-settings-fallback';
-import { createWebFallbackInfo } from './app-info-fallback';
 import { cancelWebChatStream, startWebChatStream } from './chat-fallback';
 import {
   deleteWebConversation,

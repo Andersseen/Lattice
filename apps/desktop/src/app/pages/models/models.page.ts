@@ -6,8 +6,8 @@ import {
   inject,
   signal
 } from '@angular/core';
-import { VoltButton } from '@voltui/components';
 import type { ModelDescriptor } from '@lattice/types';
+import { VoltButton } from '@voltui/components';
 
 import { ModelRuntimeStore } from '../../core/state/model-runtime.store';
 import { ModelSlotStore } from '../../core/state/model-slot.store';

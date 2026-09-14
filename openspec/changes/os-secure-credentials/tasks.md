@@ -16,4 +16,4 @@
 - [ ] Add a Playwright e2e scenario: add a credential (fake prompt in web fallback), see it listed as available, replace it, delete it.
 - [ ] Add `docs/adr/0013-native-macos-credential-storage.md` recording the `security-framework`/`osascript` dependency-admission decisions from design.md.
 - [ ] Write `docs/verification/0.10-os-secure-credentials.md` (automated checks run + evidence limits, matching 0.9's format) and update `docs/roadmap.md`, `docs/v1/capability-map.md`, `CHANGELOG.md`.
-- [ ] Run OpenSpec validation (`pnpm dlx @fission-ai/openspec@1.12.0 validate os-secure-credentials --strict`), Rust (`cargo test --workspace`, `cargo clippy --workspace -- -D warnings`), TypeScript (`pnpm test`), web build, E2E, and native (`--no-bundle`) build checks; record results in the verification doc.
+- [ ] Run OpenSpec validation (`bunx @fission-ai/openspec@1.12.0 validate os-secure-credentials --strict`), Rust (`cargo test --workspace`, `cargo clippy --workspace -- -D warnings`), TypeScript (`bun run test`), web build, E2E, and native (`--no-bundle`) build checks; record results in the verification doc.

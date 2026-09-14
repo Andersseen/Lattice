@@ -17,8 +17,8 @@ Implemented now, on the active `0.8` branch (evidence limits recorded in `docs/v
 - Replaceable `ModelRuntime` discovery and owned/attached start-stop lifecycle for llmster, behind an isolated adapter (`0.5`–`0.6`).
 - Installed/loaded local model inventory with a single managed load slot (`0.7`).
 - A provider-neutral local completion port with streaming chat, cancellation and a model lease, backed by a local OpenAI-compatible (llmster) adapter (`0.8`).
-- pnpm, Turborepo, and Cargo workspaces.
-- Vitest, Playwright, ESLint, Prettier, rustfmt, Clippy, and CI configuration.
+- Bun, Turborepo, and Cargo workspaces.
+- Vitest, Playwright, Biome, Angular ESLint, rustfmt, Clippy, and CI configuration.
 - OpenSpec-driven development for every change above.
 
 Not yet implemented:
@@ -90,11 +90,11 @@ See [docs/architecture.md](docs/architecture.md).
 
 - Desktop: Tauri 2 and Rust stable.
 - Frontend: Angular 22, standalone APIs, zoneless change detection, signals, modern control flow, lazy routes.
-- Package management: pnpm workspaces.
+- Package management: Bun workspaces.
 - Task orchestration: Turborepo.
 - Native code: Cargo workspace.
 - Testing: Vitest, Playwright, Cargo tests.
-- Quality: ESLint flat config, Prettier, rustfmt, Clippy.
+- Quality: Biome for generic TypeScript/JavaScript/JSON/CSS formatting and linting; Angular ESLint for Angular component/template validation; rustfmt and Clippy for Rust.
 - UI foundation: Volt UI themes/components, Angular Movement, Lumen Icons, and Quartz Headless primitives.
 - Agent development tooling: Agentyx project-local pack configuration for Codex skills/MCP planning.
 
@@ -104,40 +104,41 @@ Volt UI, Angular Movement, Lumen Icons and Quartz Headless are admitted as front
 
 Requirements:
 
-- Node.js 22.22.3 or newer in the Node 22 line.
-- pnpm 10 via Corepack.
+- Bun 1.3.11 or newer.
+- Node.js 22.22.3 or newer in the Node 22 line for Node-compatible tooling.
 - Rust stable.
 - Tauri 2 platform prerequisites for your operating system.
 
 ```bash
-corepack enable
-pnpm install
-pnpm dev
+bun install
+bun run dev
 ```
 
-`pnpm dev` starts the Tauri desktop app and the Angular dev server.
+`bun run dev` starts the Tauri desktop app and the Angular dev server.
 
 ## Development
 
 ```bash
-pnpm dev
-pnpm build
-pnpm build:web
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm e2e
-pnpm check
-pnpm contracts:generate
-pnpm contracts:check
-pnpm agentyx:doctor
-pnpm agentyx:install:dry-run
-pnpm agentyx:install
+bun run dev
+bun run build
+bun run build:web
+bun run lint
+bun run format
+bun run format:check
+bun run typecheck
+bun run test
+bun run e2e
+bun run check
+bun run contracts:generate
+bun run contracts:check
+bun run agentyx:doctor
+bun run agentyx:install:dry-run
+bun run agentyx:install
 ```
 
-`pnpm contracts:generate` refreshes committed TypeScript bindings from Rust-owned wire contracts. `pnpm contracts:check` verifies that the committed bindings match Rust.
+`bun run contracts:generate` refreshes committed TypeScript bindings from Rust-owned wire contracts. `bun run contracts:check` verifies that the committed bindings match Rust.
 
-`pnpm agentyx:doctor` verifies the project-local Agentyx configuration. `pnpm agentyx:install:dry-run` previews skill/MCP installation plans, and `pnpm agentyx:install` applies them to project-local provider files.
+`bun run agentyx:doctor` verifies the project-local Agentyx configuration. `bun run agentyx:install:dry-run` previews skill/MCP installation plans, and `bun run agentyx:install` applies them to project-local provider files.
 
 Useful Rust commands:
 
@@ -175,7 +176,7 @@ openspec/                OpenSpec config, active changes and accepted specs
 
 See [docs/roadmap.md](docs/roadmap.md). The roadmap has no dates and does not make Wisp or Vertex part of v1.
 
-The [repository assessment](docs/v1/repository-assessment.md) distinguishes implemented behavior from planned releases; the [Definition of 1.0](docs/v1/definition-of-v1.md) sets the required workflow and platform support. The next implementation scope is **0.9 — Conversation persistence**.
+The [repository assessment](docs/v1/repository-assessment.md) distinguishes implemented behavior from planned releases; the [Definition of 1.0](docs/v1/definition-of-v1.md) sets the required workflow and platform support. The next implementation scope is **0.11 — Remote OpenAI-compatible chat**.
 
 ## Contributing
 

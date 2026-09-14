@@ -5,9 +5,8 @@ Thanks for helping shape Lattice.
 ## Development Setup
 
 ```bash
-corepack enable
-pnpm install
-pnpm check
+bun install
+bun run check
 ```
 
 Use Rust stable and install the Tauri prerequisites for your operating system.
@@ -18,9 +17,9 @@ Use Rust stable and install the Tauri prerequisites for your operating system.
 - Use OpenSpec for significant behavior or architecture changes.
 - Prefer one clear PR over a broad rewrite.
 - Add tests where behavior changes.
-- Run `pnpm check` before opening a PR.
-- Run `pnpm contracts:generate` after changing Rust-owned application wire contracts.
-- Run `pnpm contracts:check` when reviewing generated contract changes.
+- Run `bun run check` before opening a PR.
+- Run `bun run contracts:generate` after changing Rust-owned application wire contracts.
+- Run `bun run contracts:check` when reviewing generated contract changes.
 
 ## Conventional Commits
 
@@ -41,4 +40,4 @@ Do not add dependencies without a concrete reason. Before adding one, check that
 
 Use OpenSpec when a change affects product behavior, security boundaries, native capability access, persistence, providers, model runtime, agent runtime, MCP, skills, memory, tasks, or architecture.
 
-OpenSpec validation is pinned through `pnpm openspec:validate`.
+OpenSpec validation is pinned through `bun run openspec:validate`.

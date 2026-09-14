@@ -1,17 +1,16 @@
 import type { ChatStreamEvent } from '@lattice/types';
-
-import {
-  configureWebModelRuntime,
-  resetWebModelRuntimeStatusForTest,
-  startWebModelRuntime
-} from './model-runtime-fallback';
-import { loadWebModel, resetWebModelSlotStatusForTest } from './model-slot-fallback';
 import {
   cancelWebChatStream,
   resetWebChatStreamForTest,
   startWebChatStream
 } from './chat-fallback';
 import { resetWebConversationsForTest } from './conversations-fallback';
+import {
+  configureWebModelRuntime,
+  resetWebModelRuntimeStatusForTest,
+  startWebModelRuntime
+} from './model-runtime-fallback';
+import { loadWebModel, resetWebModelSlotStatusForTest } from './model-slot-fallback';
 
 const MODEL_KEY = 'qwen/qwen2.5-0.5b-instruct';
 

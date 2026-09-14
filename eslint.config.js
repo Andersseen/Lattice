@@ -1,8 +1,7 @@
 import angular from '@angular-eslint/eslint-plugin';
 import angularTemplate from '@angular-eslint/eslint-plugin-template';
 import angularTemplateParser from '@angular-eslint/template-parser';
-import js from '@eslint/js';
-import tseslint from 'typescript-eslint';
+import tsParser from '@typescript-eslint/parser';
 
 export default [
   {
@@ -17,10 +16,11 @@ export default [
       '**/src-tauri/gen/**'
     ]
   },
-  js.configs.recommended,
-  ...tseslint.configs.recommended,
   {
     files: ['**/*.ts'],
+    languageOptions: {
+      parser: tsParser
+    },
     plugins: {
       '@angular-eslint': angular
     },
@@ -46,14 +46,7 @@ export default [
           prefix: 'lat',
           style: 'camelCase'
         }
-      ],
-      '@typescript-eslint/consistent-type-imports': [
-        'error',
-        {
-          prefer: 'type-imports'
-        }
-      ],
-      '@typescript-eslint/no-explicit-any': 'error'
+      ]
     }
   },
   {

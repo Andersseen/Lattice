@@ -62,7 +62,7 @@ Add a deterministic failure harness where possible. If Tauri runtime failure is 
 
 Add scheduled and change-triggered dependency checks without adding product runtime dependencies:
 
-- JavaScript: `pnpm audit` with a documented blocking threshold.
+- JavaScript: `bun audit` with a documented blocking threshold.
 - Rust: `cargo audit --deny yanked` or an equivalent maintained RustSec advisory check, installed in CI/tooling only.
 - Unmaintained or unsound warnings are triaged and tracked; they do not fail ordinary PRs unless the advisory is explicitly escalated by policy.
 - License/maintenance exceptions are documented with owner, reason, severity, expiry/revisit date, and mitigation.

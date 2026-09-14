@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, Injectable, inject, signal } from '@angular/core';
 import type { AppError, ChatMessage, ChatRole, ChatStreamEvent, Message } from '@lattice/types';
 
 import { AppApiService } from '../api/app-api.service';
@@ -7,7 +7,11 @@ import { ConversationsStore } from './conversations.store';
 import { ModelSlotStore } from './model-slot.store';
 
 export type ChatTranscriptEntryStatus =
-  'complete' | 'streaming' | 'cancelled' | 'failed' | 'interrupted';
+  | 'complete'
+  | 'streaming'
+  | 'cancelled'
+  | 'failed'
+  | 'interrupted';
 
 export interface ChatTranscriptEntry {
   readonly role: ChatRole;
