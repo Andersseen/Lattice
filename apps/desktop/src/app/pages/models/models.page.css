@@ -1,6 +1,8 @@
 .models {
   display: grid;
   gap: 1.5rem;
+  width: min(100%, 76rem);
+  margin: 0 auto;
 }
 
 .heading {
@@ -23,7 +25,7 @@ p {
 }
 
 h1 {
-  font-size: 2rem;
+  font-size: 1.8rem;
   line-height: 1.15;
 }
 
@@ -37,13 +39,13 @@ dt {
   color: var(--color-muted);
 }
 
-.summary {
+.hero-card {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
 
-.summary article,
+.hero-card article,
 .runtime-card,
 .details,
 .notice {
@@ -52,12 +54,15 @@ dt {
   background: var(--color-surface);
 }
 
-.summary article {
+.hero-card article {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
   min-height: 6rem;
   padding: 1rem;
 }
 
-.summary span,
+.label,
 label span,
 dt {
   color: var(--color-muted);
@@ -65,16 +70,31 @@ dt {
   font-weight: 700;
 }
 
-.summary strong {
-  display: block;
-  margin-top: 0.5rem;
+.hero-card strong {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--color-muted);
+}
+
+.dot.ready {
+  background: #1f8a5b;
 }
 
 .runtime-card {
   display: grid;
-  grid-template-columns: minmax(12rem, 1fr) minmax(18rem, 34rem) auto;
+  grid-template-columns: minmax(12rem, 1fr) minmax(0, 34rem) auto;
   align-items: end;
   gap: 1rem;
+  min-width: 0;
   padding: 1.25rem;
 }
 
@@ -85,6 +105,7 @@ label {
 
 input {
   width: 100%;
+  min-width: 0;
   min-height: 2.75rem;
   border: 1px solid var(--color-border-strong);
   border-radius: 0.45rem;
@@ -101,6 +122,15 @@ input {
 
 .details {
   padding: 1.25rem;
+}
+
+.details summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.details[open] summary {
+  margin-bottom: 1rem;
 }
 
 dl {
@@ -165,7 +195,7 @@ dd {
 }
 
 @media (max-width: 56rem) {
-  .summary,
+  .hero-card,
   .runtime-card,
   dl {
     grid-template-columns: 1fr;

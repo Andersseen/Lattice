@@ -1,7 +1,7 @@
 <section class="models" aria-labelledby="models-title">
   <div class="heading">
-    <p class="eyebrow">Model runtime</p>
-    <h1 id="models-title">Runtime discovery</h1>
+    <p class="eyebrow">Local AI</p>
+    <h1 id="models-title">Models</h1>
   </div>
 
   @if (isLoading() && status() === null) {
@@ -12,41 +12,33 @@
     <volt-button type="button" variant="outline" size="sm" (click)="refresh()">Retry</volt-button>
   </div>
   } @if (status(); as runtimeStatus) {
-  <section class="summary" aria-label="Runtime summary">
+  <section class="hero-card" aria-label="Local AI summary">
     <article>
-      <span>Status</span>
-      <strong>{{ runtimeStatus.availability }}</strong>
+      <span class="label">Runtime</span>
+      <strong>
+        <span class="dot" [class.ready]="runtimeIsRunning()" aria-hidden="true"></span>
+        {{ runtimeLabel() }}
+      </strong>
+      <p>{{ runtimeStatus.message }}</p>
     </article>
     <article>
-      <span>Daemon</span>
-      <strong>{{ runtimeStatus.daemon.status }}</strong>
-    </article>
-    <article>
-      <span>Server</span>
-      <strong>{{ runtimeStatus.server.status }}</strong>
-    </article>
-    <article>
-      <span>Ownership</span>
-      <strong>{{ runtimeStatus.ownership.state }}</strong>
+      <span class="label">Loaded model</span>
+      <strong>{{ loadedModelLabel() }}</strong>
+      @if (slotStatus()?.loaded?.sizeBytes; as loadedSize) {
+      <p>{{ formatBytes(loadedSize) }}</p>
+      } @else {
+      <p>Load one installed model before chatting.</p>
+      }
     </article>
   </section>
 
   <section class="runtime-card" aria-labelledby="runtime-lifecycle-title">
     <div>
-      <h2 id="runtime-lifecycle-title">Lifecycle</h2>
-      @if (runtimeStatus.lastOperation; as lastOperation) {
-      <p>Last operation: {{ lastOperation }}</p>
-      }
+      <h2 id="runtime-lifecycle-title">Runtime</h2>
+      <p>Start the local runtime when you want to use installed models.</p>
     </div>
-
     <div class="actions">
-      <volt-button
-        type="button"
-        variant="outline"
-        size="md"
-        [disabled]="!canStart()"
-        (click)="start()"
-      >
+      <volt-button type="button" size="md" [disabled]="!canStart()" (click)="start()">
         {{ isStarting() ? 'Starting' : 'Start' }}
       </volt-button>
       <volt-button
@@ -68,8 +60,8 @@
 
   <section class="runtime-card" aria-labelledby="runtime-path-title">
     <div>
-      <h2 id="runtime-path-title">Executable</h2>
-      <p>{{ runtimeStatus.message }}</p>
+      <h2 id="runtime-path-title">Runtime executable</h2>
+      <p>Use the approved local runtime executable path.</p>
     </div>
 
     <label>
@@ -95,6 +87,7 @@
       </volt-button>
       <volt-button
         type="button"
+        variant="outline"
         size="md"
         [disabled]="!canProbe() || isProbing()"
         (click)="probe()"
@@ -102,27 +95,6 @@
         {{ isProbing() ? 'Checking' : 'Probe' }}
       </volt-button>
     </div>
-  </section>
-
-  <section class="details" aria-label="Runtime details">
-    <dl>
-      <div>
-        <dt>Revision</dt>
-        <dd>{{ runtimeStatus.revision }}</dd>
-      </div>
-      <div>
-        <dt>CLI</dt>
-        <dd>{{ runtimeStatus.cliVersion ?? 'Not checked' }}</dd>
-      </div>
-      <div>
-        <dt>Endpoint</dt>
-        <dd>{{ runtimeStatus.server.endpoint ?? 'Unavailable' }}</dd>
-      </div>
-      <div>
-        <dt>Last checked</dt>
-        <dd>{{ runtimeStatus.lastCheckedUnixSeconds ?? 'Never' }}</dd>
-      </div>
-    </dl>
   </section>
 
   <section class="model-card" aria-labelledby="installed-models-title">
@@ -148,7 +120,7 @@
       <li>
         <div>
           <strong>{{ model.displayName }}</strong>
-          <span>{{ model.architecture ?? 'Unknown architecture' }}</span>
+          <span>{{ modelSubtitle(model) }}</span>
         </div>
         <volt-button
           type="button"
@@ -163,22 +135,6 @@
       }
     </ul>
     }
-
-    <div class="model-details">
-      @if (slot.lastOperation; as lastModelOperation) {
-      <p>Last operation: {{ lastModelOperation }}</p>
-      }
-      <dl>
-        <div>
-          <dt>Loaded</dt>
-          <dd>{{ slot.loaded?.modelKey ?? 'None' }}</dd>
-        </div>
-        <div>
-          <dt>Ownership</dt>
-          <dd>{{ slot.ownership.state }}</dd>
-        </div>
-      </dl>
-    </div>
 
     <div class="actions">
       <volt-button
@@ -198,5 +154,61 @@
     </div>
     }
   </section>
+
+  <details class="details">
+    <summary>Advanced diagnostics</summary>
+    <dl>
+      <div>
+        <dt>Executable</dt>
+        <dd>{{ runtimeStatus.executablePath ?? 'Not configured' }}</dd>
+      </div>
+      <div>
+        <dt>CLI version</dt>
+        <dd>{{ runtimeStatus.cliVersion ?? 'Not checked' }}</dd>
+      </div>
+      <div>
+        <dt>Daemon</dt>
+        <dd>{{ runtimeStatus.daemon.status }}</dd>
+      </div>
+      <div>
+        <dt>Server</dt>
+        <dd>{{ runtimeStatus.server.status }}</dd>
+      </div>
+      <div>
+        <dt>Endpoint</dt>
+        <dd>{{ runtimeStatus.server.endpoint ?? 'Unavailable' }}</dd>
+      </div>
+      <div>
+        <dt>Runtime ownership</dt>
+        <dd>{{ runtimeStatus.ownership.state }}</dd>
+      </div>
+      <div>
+        <dt>Runtime revision</dt>
+        <dd>{{ runtimeStatus.revision }}</dd>
+      </div>
+      <div>
+        <dt>Runtime last checked</dt>
+        <dd>{{ formatTime(runtimeStatus.lastCheckedUnixSeconds) }}</dd>
+      </div>
+      @if (slotStatus(); as slot) {
+      <div>
+        <dt>Model ownership</dt>
+        <dd>{{ slot.ownership.state }}</dd>
+      </div>
+      <div>
+        <dt>Model revision</dt>
+        <dd>{{ slot.revision }}</dd>
+      </div>
+      <div>
+        <dt>Model last operation</dt>
+        <dd>{{ slot.lastOperation ?? 'None' }}</dd>
+      </div>
+      <div>
+        <dt>Model last checked</dt>
+        <dd>{{ formatTime(slot.lastCheckedUnixSeconds) }}</dd>
+      </div>
+      }
+    </dl>
+  </details>
   } }
 </section>

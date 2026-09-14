@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { VoltButton } from '@voltui/components';
 
@@ -20,6 +20,7 @@ export class HistoryPage {
   protected readonly isLoading = this.conversationsStore.isLoading;
   protected readonly hasMore = this.conversationsStore.hasMore;
   protected readonly deletingId = this.conversationsStore.deletingId;
+  protected readonly pendingDeleteId = signal<string | null>(null);
 
   constructor() {
     void this.conversationsStore.load();
@@ -33,11 +34,19 @@ export class HistoryPage {
     void this.conversationsStore.loadMore();
   }
 
-  protected delete(conversationId: string, title: string, event: Event): void {
+  protected requestDelete(conversationId: string, event: Event): void {
     event.stopPropagation();
-    if (!globalThis.confirm(`Delete "${title}"? This cannot be undone.`)) {
-      return;
-    }
+    this.pendingDeleteId.set(conversationId);
+  }
+
+  protected cancelDelete(event: Event): void {
+    event.stopPropagation();
+    this.pendingDeleteId.set(null);
+  }
+
+  protected delete(conversationId: string, event: Event): void {
+    event.stopPropagation();
+    this.pendingDeleteId.set(null);
     void this.conversationsStore.delete(conversationId);
   }
 

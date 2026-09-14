@@ -7,6 +7,7 @@ import {
   signal
 } from '@angular/core';
 import { VoltButton } from '@voltui/components';
+import type { ModelDescriptor } from '@lattice/types';
 
 import { ModelRuntimeStore } from '../../core/state/model-runtime.store';
 import { ModelSlotStore } from '../../core/state/model-slot.store';
@@ -37,6 +38,20 @@ export class ModelsPage {
   protected readonly canConfigure = computed(
     () => this.executablePath().trim().length > 0 && !this.isSaving()
   );
+  protected readonly runtimeLabel = computed(() => {
+    const status = this.status();
+    if (status === null) {
+      return 'Checking';
+    }
+    if (status.availability === 'running') {
+      return 'Running';
+    }
+    if (status.executablePath === undefined) {
+      return 'Not configured';
+    }
+    return capitalize(status.availability);
+  });
+  protected readonly runtimeIsRunning = computed(() => this.status()?.availability === 'running');
 
   protected readonly slotStatus = this.slotStore.status;
   protected readonly slotError = this.slotStore.error;
@@ -46,6 +61,16 @@ export class ModelsPage {
   protected readonly canLoadModel = this.slotStore.canLoad;
   protected readonly canUnloadModel = this.slotStore.canUnload;
   protected readonly isModelOperationPending = this.slotStore.isOperationPending;
+  protected readonly loadedModelLabel = computed(() => {
+    const slot = this.slotStatus();
+    if (slot?.ownership.state === 'owned') {
+      return slot.ownership.modelKey;
+    }
+    if (slot?.loaded?.modelKey !== undefined) {
+      return slot.loaded.modelKey;
+    }
+    return 'No model loaded';
+  });
 
   constructor() {
     effect(() => {
@@ -108,4 +133,35 @@ export class ModelsPage {
   protected cancelModelOperation(): void {
     void this.slotStore.cancelOperation();
   }
+
+  protected formatBytes(bytes: number | undefined): string {
+    if (bytes === undefined) {
+      return 'Size unknown';
+    }
+    if (bytes < 1_000_000_000) {
+      return `${Math.round(bytes / 1_000_000)} MB`;
+    }
+    return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
+  }
+
+  protected modelSubtitle(model: ModelDescriptor): string {
+    return `${model.architecture ?? 'Unknown architecture'} · ${this.formatBytes(model.sizeBytes)}`;
+  }
+
+  protected formatTime(unixSeconds: number | undefined): string {
+    if (unixSeconds === undefined) {
+      return 'Never';
+    }
+    if (unixSeconds < 946_684_800) {
+      return 'Recently';
+    }
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    }).format(new Date(unixSeconds * 1000));
+  }
+}
+
+function capitalize(value: string): string {
+  return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
 }

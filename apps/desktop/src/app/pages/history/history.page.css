@@ -86,6 +86,24 @@ h1 {
   text-transform: capitalize;
 }
 
+.inline-confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.inline-confirm button {
+  min-height: 2rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.35rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  cursor: pointer;
+  font: inherit;
+}
+
 @media (max-width: 40rem) {
   .conversation-card {
     flex-direction: column;

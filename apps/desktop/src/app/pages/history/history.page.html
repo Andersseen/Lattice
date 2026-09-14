@@ -26,15 +26,23 @@
           }
         </span>
       </div>
+      @if (pendingDeleteId() === conversation.id) {
+      <div class="inline-confirm" role="group" aria-label="Confirm conversation deletion">
+        <span>Delete?</span>
+        <button type="button" (click)="delete(conversation.id, $event)">Yes</button>
+        <button type="button" (click)="cancelDelete($event)">No</button>
+      </div>
+      } @else {
       <volt-button
         type="button"
         variant="outline"
         size="sm"
         [disabled]="deletingId() === conversation.id"
-        (click)="delete(conversation.id, conversation.title, $event)"
+        (click)="requestDelete(conversation.id, $event)"
       >
         {{ deletingId() === conversation.id ? 'Deleting' : 'Delete' }}
       </volt-button>
+      }
     </li>
     }
   </ul>

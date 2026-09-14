@@ -90,6 +90,14 @@ export class SettingsStore {
     }
   }
 
+  previewAppearance(appearance: AppearancePreference): void {
+    this.applyAppearance(appearance);
+  }
+
+  restoreSavedAppearance(): void {
+    this.applyAppearance(this.settingsState()?.appearance ?? 'system');
+  }
+
   private applyAppearance(appearance: AppearancePreference): void {
     const root = this.document.documentElement;
     if (appearance === 'system') {

@@ -1,213 +1,178 @@
 import { expect, test, type Page } from '@playwright/test';
 
-test('application loads the foundation shell', async ({ page }) => {
+const QWEN_MODEL_KEY = 'qwen/qwen2.5-0.5b-instruct';
+
+test('app opens into the Chat product center', async ({ page }) => {
   await page.goto('/');
 
-  await expect(page.getByRole('link', { name: 'Lattice home' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /Local-first agentic workspace/ })).toBeVisible();
-  await expect(page.getByText('Angular zoneless')).toBeVisible();
-  await expect(page.getByText('web / debug')).toBeVisible();
+  await expect(page).toHaveURL(/\/chat$/);
+  await expect(page.getByRole('link', { name: 'Lattice chat' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Chat' })).toBeVisible();
+  await expect(page.getByText('Local runtime is not configured.')).toBeVisible();
+  await expect(page.getByText('Configure a local runtime first.')).toBeVisible();
 });
 
-test('basic navigation works', async ({ page }) => {
+test('primary navigation moves between Chat, Models, and Settings', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('link', { name: 'System', exact: true }).click();
 
-  await expect(page).toHaveURL(/\/system$/);
-  await expect(page.getByRole('heading', { name: /typed bridge/ })).toBeVisible();
+  await page.getByRole('link', { name: 'Models', exact: true }).click();
+  await expect(page).toHaveURL(/\/models$/);
+  await expect(page.getByRole('heading', { name: 'Models', exact: true })).toBeVisible();
+
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+
+  await page.getByRole('link', { name: 'Chat', exact: true }).click();
+  await expect(page).toHaveURL(/\/chat$/);
 });
 
-test('settings can be edited in browser smoke mode', async ({ page }) => {
+test('Chat shows a no-model state after the simulated runtime starts', async ({ page }) => {
+  await configureAndStartRuntime(page);
+  await page.getByRole('link', { name: 'Chat', exact: true }).click();
+
+  await expect(page.getByText('Choose a local model to start chatting.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose model' })).toBeVisible();
+});
+
+test('loading a simulated model makes Chat ready', async ({ page }) => {
+  await loadQwenModel(page);
+  await page.getByRole('link', { name: 'Chat', exact: true }).click();
+
+  await expect(page.getByText(QWEN_MODEL_KEY, { exact: true })).toBeVisible();
+  await expect(page.getByText('Ready when you are.')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Message' })).toBeEnabled();
+});
+
+test('a chat response streams and appears in Chat history', async ({ page }) => {
+  await loadQwenModel(page);
+  await page.getByRole('link', { name: 'Chat', exact: true }).click();
+
+  await sendMessage(page, 'Hello there');
+
+  await expect(page.locator('.message.assistant .text')).toContainText('simulated', {
+    timeout: 10_000
+  });
+  await expect(page.getByRole('textbox', { name: 'Message' })).toBeEnabled({ timeout: 10_000 });
+  await expect(page.locator('.message.assistant .text')).toHaveText(
+    'This is a simulated response because Lattice is running as a browser preview without the desktop shell.'
+  );
+  await expect(
+    page.locator('.conversation-button').filter({ hasText: 'Hello there' })
+  ).toBeVisible();
+});
+
+test('a chat response can be stopped mid-stream', async ({ page }) => {
+  await loadQwenModel(page);
+  await page.getByRole('link', { name: 'Chat', exact: true }).click();
+
+  await sendMessage(page, 'Please stop soon');
+  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+
+  await expect(page.locator('.message.assistant .status-tag')).toHaveText('Cancelled');
+  await expect(page.getByRole('textbox', { name: 'Message' })).toBeEnabled();
+});
+
+test('a conversation can be reopened, replaced by a new chat, and deleted from full history', async ({
+  page
+}) => {
+  await loadQwenModel(page);
+  await page.getByRole('link', { name: 'Chat', exact: true }).click();
+  await sendMessage(page, 'Remember this local chat');
+  await expect(page.getByRole('textbox', { name: 'Message' })).toBeEnabled({ timeout: 10_000 });
+
+  await page
+    .locator('.conversation-button')
+    .filter({ hasText: 'Remember this local chat' })
+    .click();
+  await expect(page).toHaveURL(/\/chat\?conversationId=/);
+  await expect(page.locator('.message.assistant .text')).toContainText('simulated');
+
+  await page.getByRole('button', { name: 'New chat' }).click();
+  await expect(page.getByText('Ready when you are.')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Full history' }).click();
+  await expect(page).toHaveURL(/\/history$/);
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  await expect(page.getByText('Remember this local chat')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: 'Yes' }).click();
+  await expect(page.getByText('No conversations yet.')).toBeVisible();
+});
+
+test('settings can be edited and advanced diagnostics are accessible', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
 
-  await expect(page).toHaveURL(/\/settings$/);
-  await expect(page.getByRole('heading', { name: 'Preferences' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'General' })).toBeVisible();
+  await page.getByRole('button', { name: 'Dark' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-appearance', 'dark');
+  await expect(page.getByText('Selected: Dark')).toBeVisible();
+  await page.getByRole('link', { name: 'Chat', exact: true }).click();
+  await expect(page.locator('html')).not.toHaveAttribute('data-appearance', 'dark');
+
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Light' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-appearance', 'light');
   await page.getByRole('button', { name: 'Dark' }).click();
   await page.getByRole('spinbutton', { name: 'Minutes' }).fill('12');
   await page.getByRole('button', { name: 'Save' }).click();
 
   await expect(page.getByText('Revision 2 · Schema 2')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-appearance', 'dark');
+  await expect(page.getByRole('heading', { name: 'Advanced' })).toBeVisible();
+  await expect(page.getByText('Application')).toBeVisible();
+  await expect(page.getByText('web · debug')).toBeVisible();
 });
 
-test('a credential can be added, replaced, and deleted in browser smoke mode', async ({ page }) => {
+test('a credential can be added, replaced, and removed in browser preview', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
 
-  await expect(page.getByRole('heading', { name: 'Credentials' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Credentials', exact: true })).toBeVisible();
   await expect(page.getByText('No credentials yet.')).toBeVisible();
 
-  await page.getByRole('textbox', { name: 'Label' }).fill('OpenAI');
-  await page.getByRole('textbox', { name: 'Provider key' }).fill('openai');
+  await page.getByRole('textbox', { name: 'Label' }).fill('Personal provider key');
+  await page.getByRole('textbox', { name: 'Credential key' }).fill('local-preview');
   await page.getByRole('button', { name: 'Add' }).click();
 
   const credentialCard = page.locator('.credential-card');
-  await expect(credentialCard.getByText('OpenAI', { exact: true })).toBeVisible();
-  await expect(credentialCard.getByText('openai · available')).toBeVisible();
+  await expect(credentialCard.getByText('Personal provider key', { exact: true })).toBeVisible();
+  await expect(credentialCard.getByText('Stored securely · local-preview')).toBeVisible();
 
   await credentialCard.getByRole('button', { name: 'Replace' }).click();
-  await expect(credentialCard.getByText('openai · available')).toBeVisible();
+  await expect(credentialCard.getByText('Stored securely · local-preview')).toBeVisible();
 
-  page.once('dialog', (dialog) => void dialog.accept());
-  await credentialCard.getByRole('button', { name: 'Delete' }).click();
+  await credentialCard.getByRole('button', { name: 'Remove' }).click();
+  await credentialCard.getByRole('button', { name: 'Yes' }).click();
   await expect(page.getByText('No credentials yet.')).toBeVisible();
 });
 
-test('model runtime discovery can be configured in browser smoke mode', async ({ page }) => {
+async function configureAndStartRuntime(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('link', { name: 'Models', exact: true }).click();
-
-  await expect(page).toHaveURL(/\/models$/);
-  await expect(page.getByRole('heading', { name: 'Runtime discovery' })).toBeVisible();
-  await page.getByRole('textbox', { name: 'Path' }).fill('/usr/local/bin/lms');
-  await page.getByRole('button', { name: 'Configure' }).click();
-  await expect(page.getByText('Approve a runtime probe')).toBeVisible();
-  await page.getByRole('button', { name: 'Probe' }).click();
-
-  await expect(page.getByText('stopped').first()).toBeVisible();
-  await expect(page.getByText('0.0.47')).toBeVisible();
-});
-
-test('model runtime lifecycle can be started and stopped in browser smoke mode', async ({
-  page
-}) => {
-  await page.goto('/');
-  await page.getByRole('link', { name: 'Models', exact: true }).click();
-
-  await expect(page).toHaveURL(/\/models$/);
   await page.getByRole('textbox', { name: 'Path' }).fill('/usr/local/bin/lms');
   await page.getByRole('button', { name: 'Configure' }).click();
   await page.getByRole('button', { name: 'Probe' }).click();
-  await expect(page.getByText('stopped').first()).toBeVisible();
-
-  const startButton = page.getByRole('button', { name: 'Start' });
-  await expect(startButton).toBeEnabled();
-  await startButton.click();
-
-  await expect(page.getByText('running').first()).toBeVisible();
-  await expect(page.getByText('owned')).toBeVisible();
-  await expect(page.getByText('Last operation: started')).toBeVisible();
-
-  const stopButton = page.getByRole('button', { name: 'Stop' });
-  await expect(stopButton).toBeEnabled();
-  await stopButton.click();
-
-  await expect(page.getByText('stopped').first()).toBeVisible();
-  await expect(page.getByText('unknown').first()).toBeVisible();
-  await expect(page.getByText('Last operation: stopped')).toBeVisible();
-});
-
-test('installed models can be loaded and unloaded in browser smoke mode', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('link', { name: 'Models', exact: true }).click();
-
-  await expect(page).toHaveURL(/\/models$/);
-  await page.getByRole('textbox', { name: 'Path' }).fill('/usr/local/bin/lms');
-  await page.getByRole('button', { name: 'Configure' }).click();
-  await page.getByRole('button', { name: 'Probe' }).click();
-  await expect(page.getByText('stopped').first()).toBeVisible();
+  await expect(page.getByText('Stopped')).toBeVisible();
   await page.getByRole('button', { name: 'Start' }).click();
-  await expect(page.getByText('running').first()).toBeVisible();
-
-  await expect(page.getByRole('heading', { name: 'Installed models' })).toBeVisible();
-  const loadButton = page.getByRole('listitem').filter({ hasText: 'Qwen2.5' }).getByRole('button');
-  await expect(loadButton).toBeEnabled();
-  await loadButton.click();
-
-  const modelCard = page.locator('.model-card');
-  await expect(modelCard.getByText('qwen/qwen2.5-0.5b-instruct')).toBeVisible();
-  await expect(modelCard.getByText('owned')).toBeVisible();
-  await expect(modelCard.getByText('Last operation: loaded')).toBeVisible();
-
-  const unloadButton = page.getByRole('button', { name: 'Unload' });
-  await expect(unloadButton).toBeEnabled();
-  await unloadButton.click();
-
-  await expect(modelCard.getByText('None')).toBeVisible();
-  await expect(modelCard.getByText('Last operation: unloaded')).toBeVisible();
-});
-
-async function loadQwenModel(page: Page): Promise<void> {
-  await page.goto('/');
-  await page.getByRole('link', { name: 'Models', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Path' }).fill('/usr/local/bin/lms');
-  await page.getByRole('button', { name: 'Configure' }).click();
-  await page.getByRole('button', { name: 'Probe' }).click();
-  await expect(page.getByText('stopped').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Start' }).click();
-  await expect(page.getByText('running').first()).toBeVisible();
-
-  const loadButton = page.getByRole('listitem').filter({ hasText: 'Qwen2.5' }).getByRole('button');
-  await expect(loadButton).toBeEnabled();
-  await loadButton.click();
-  await expect(page.locator('.model-card').getByText('owned')).toBeVisible();
+  await expect(page.getByText('Running', { exact: true })).toBeVisible();
 }
 
-test('a chat response streams incrementally and completes in browser smoke mode', async ({
-  page
-}) => {
-  await loadQwenModel(page);
-  await page.getByRole('link', { name: 'Chat', exact: true }).click();
+async function loadQwenModel(page: Page): Promise<void> {
+  await configureAndStartRuntime(page);
 
-  await expect(page).toHaveURL(/\/chat$/);
-  await expect(page.getByRole('heading', { name: 'Chat' })).toBeVisible();
-  await expect(page.getByText('qwen/qwen2.5-0.5b-instruct')).toBeVisible();
+  const loadButton = page.getByRole('listitem').filter({ hasText: 'Qwen2.5' }).getByRole('button');
+  await expect(loadButton).toBeEnabled();
+  await loadButton.click();
 
+  await expect(page.getByText(QWEN_MODEL_KEY, { exact: true })).toBeVisible();
+}
+
+async function sendMessage(page: Page, message: string): Promise<void> {
   const input = page.getByRole('textbox', { name: 'Message' });
-  await input.fill('Hello there');
+  await input.fill(message);
   await page.getByRole('button', { name: 'Send' }).click();
-
-  await expect(page.locator('.message.assistant .text')).toContainText('simulated', {
-    timeout: 10_000
-  });
-  await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled({ timeout: 10_000 });
-  await expect(page.locator('.message.assistant .text')).toHaveText(
-    'This is a simulated response because Lattice is running as a browser preview without the desktop shell.'
-  );
-});
-
-test('a chat response can be cancelled mid-stream in browser smoke mode', async ({ page }) => {
-  await loadQwenModel(page);
-  await page.getByRole('link', { name: 'Chat', exact: true }).click();
-
-  const input = page.getByRole('textbox', { name: 'Message' });
-  await input.fill('Hello there');
-  await page.getByRole('button', { name: 'Send' }).click();
-
-  await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
-  await page.getByRole('button', { name: 'Cancel' }).click();
-
-  await expect(page.locator('.message.assistant .status-tag')).toHaveText('Cancelled');
-  await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled();
-});
-
-test('a conversation appears in history and can be reopened and deleted', async ({ page }) => {
-  await loadQwenModel(page);
-  await page.getByRole('link', { name: 'Chat', exact: true }).click();
-
-  const input = page.getByRole('textbox', { name: 'Message' });
-  await input.fill('Hello there');
-  await page.getByRole('button', { name: 'Send' }).click();
-  await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled({ timeout: 10_000 });
-
-  await page.getByRole('link', { name: 'History', exact: true }).click();
-  await expect(page).toHaveURL(/\/history$/);
-  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
-  await expect(page.getByText('Hello there')).toBeVisible();
-  await expect(page.getByText('2 messages')).toBeVisible();
-
-  await page.getByText('Hello there').click();
-  await expect(page).toHaveURL(/\/chat\?conversationId=/);
-  await expect(page.locator('.message.assistant .text')).toContainText('simulated', {
-    timeout: 10_000
-  });
-
-  await page.getByRole('button', { name: 'New chat' }).click();
-  await expect(page.getByText('No messages yet. Say hello.')).toBeVisible();
-
-  await page.getByRole('link', { name: 'History', exact: true }).click();
-  page.once('dialog', (dialog) => void dialog.accept());
-  await page.getByRole('button', { name: 'Delete' }).click();
-  await expect(page.getByText('No conversations yet.')).toBeVisible();
-});
+}

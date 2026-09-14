@@ -1,7 +1,7 @@
 <section class="settings" aria-labelledby="settings-title">
   <div class="heading">
-    <p class="eyebrow">Application settings</p>
-    <h1 id="settings-title">Preferences</h1>
+    <p class="eyebrow">Lattice</p>
+    <h1 id="settings-title">Settings</h1>
   </div>
 
   @if (isLoading() && settings() === null) {
@@ -12,11 +12,16 @@
     <volt-button type="button" variant="outline" size="sm" (click)="retry()">Retry</volt-button>
   </div>
   } @if (settings(); as currentSettings) {
-  <div class="settings-grid">
+  <section class="settings-cluster" aria-labelledby="general-settings-title">
+    <h2 id="general-settings-title">General</h2>
     <section class="setting-group" aria-labelledby="appearance-title">
       <div>
-        <h2 id="appearance-title">Appearance</h2>
-        <p>Current: {{ currentSettings.appearance }}</p>
+        <h3 id="appearance-title">Appearance</h3>
+        <p>
+          Selected: {{ selectedAppearanceLabel() }} @if (appearanceHasPendingChange()) {
+          <span class="pending-note">Unsaved</span>
+          }
+        </p>
       </div>
 
       <div class="segmented" role="group" aria-label="Appearance">
@@ -35,7 +40,7 @@
 
     <section class="setting-group" aria-labelledby="idle-unload-title">
       <div>
-        <h2 id="idle-unload-title">Idle unload</h2>
+        <h3 id="idle-unload-title">Idle model unload</h3>
         <p>Current: {{ currentSettings.idleUnloadMinutes }} min</p>
       </div>
 
@@ -56,7 +61,7 @@
       <p class="field-error" role="alert">Use a value from 1 to 120.</p>
       }
     </section>
-  </div>
+  </section>
 
   <footer class="actions">
     <span
@@ -79,82 +84,173 @@
   </footer>
   } }
 
-  <section class="setting-group credentials-group" aria-labelledby="credentials-title">
-    <div>
-      <h2 id="credentials-title">Credentials</h2>
-      <p>
-        Secret values are entered through a native, OS-secure prompt and never seen by this window.
-      </p>
-    </div>
+  <section class="settings-cluster" aria-labelledby="credentials-section-title">
+    <h2 id="credentials-section-title">Providers & credentials</h2>
 
-    @if (credentialsError(); as credentialError) {
-    <div class="notice" role="alert">
-      <p>{{ credentialError.message }}</p>
-      <volt-button type="button" variant="outline" size="sm" (click)="retryCredentials()"
-        >Retry</volt-button
-      >
-    </div>
-    }
+    <section class="setting-group credentials-group" aria-labelledby="credentials-title">
+      <div>
+        <h3 id="credentials-title">Credentials</h3>
+        <p>
+          Secret values are entered through a native, OS-secure prompt and never seen by this
+          window.
+        </p>
+      </div>
 
-    <form class="credential-form" (submit)="$event.preventDefault(); addCredential()">
-      <label class="text-field">
-        <span>Label</span>
-        <input
-          type="text"
-          placeholder="OpenAI"
-          [value]="draftCredentialLabel()"
-          (input)="setCredentialLabel($event)"
-        />
-      </label>
-      <label class="text-field">
-        <span>Provider key</span>
-        <input
-          type="text"
-          placeholder="openai"
-          [value]="draftCredentialProviderKey()"
-          (input)="setCredentialProviderKey($event)"
-        />
-      </label>
-      <volt-button type="submit" size="md" [disabled]="!canAddCredential()">
-        {{ isSavingCredential() ? 'Saving' : 'Add' }}
-      </volt-button>
-    </form>
-
-    @if (isLoadingCredentials() && credentials().length === 0) {
-    <p class="status">Loading credentials.</p>
-    } @else if (credentials().length === 0) {
-    <p class="status">No credentials yet.</p>
-    } @else {
-    <ul class="credential-list">
-      @for (credential of credentials(); track credential.id) {
-      <li class="credential-card">
-        <div class="summary">
-          <strong>{{ credential.label }}</strong>
-          <span class="meta">{{ credential.providerKey }} · {{ credential.availability }}</span>
-        </div>
-        <div class="actions">
-          <volt-button
-            type="button"
-            variant="outline"
-            size="sm"
-            [disabled]="isSavingCredential()"
-            (click)="replaceCredential(credential.id)"
-          >
-            Replace
-          </volt-button>
-          <volt-button
-            type="button"
-            variant="outline"
-            size="sm"
-            [disabled]="deletingCredentialId() === credential.id"
-            (click)="deleteCredential(credential.id, credential.label, $event)"
-          >
-            {{ deletingCredentialId() === credential.id ? 'Deleting' : 'Delete' }}
-          </volt-button>
-        </div>
-      </li>
+      @if (credentialsError(); as credentialError) {
+      <div class="notice" role="alert">
+        <p>{{ credentialError.message }}</p>
+        <volt-button type="button" variant="outline" size="sm" (click)="retryCredentials()"
+          >Retry</volt-button
+        >
+      </div>
       }
-    </ul>
-    }
+
+      <form class="credential-form" (submit)="$event.preventDefault(); addCredential()">
+        <label class="text-field">
+          <span>Label</span>
+          <input
+            type="text"
+            placeholder="Personal provider key"
+            [value]="draftCredentialLabel()"
+            (input)="setCredentialLabel($event)"
+          />
+        </label>
+        <label class="text-field">
+          <span>Credential key</span>
+          <input
+            type="text"
+            placeholder="provider-key"
+            [value]="draftCredentialProviderKey()"
+            (input)="setCredentialProviderKey($event)"
+          />
+        </label>
+        <volt-button type="submit" size="md" [disabled]="!canAddCredential()">
+          {{ isSavingCredential() ? 'Saving' : 'Add' }}
+        </volt-button>
+      </form>
+
+      @if (isLoadingCredentials() && credentials().length === 0) {
+      <p class="status">Loading credentials.</p>
+      } @else if (credentials().length === 0) {
+      <p class="status">No credentials yet.</p>
+      } @else {
+      <ul class="credential-list">
+        @for (credential of credentials(); track credential.id) {
+        <li class="credential-card">
+          <div class="summary">
+            <strong>{{ credential.label }}</strong>
+            <span class="meta">
+              {{ credential.availability === 'available' ? 'Stored securely' :
+              credential.availability }} · {{ credential.providerKey }}
+            </span>
+          </div>
+          <div class="actions">
+            <volt-button
+              type="button"
+              variant="outline"
+              size="sm"
+              [disabled]="isSavingCredential()"
+              (click)="replaceCredential(credential.id)"
+            >
+              Replace
+            </volt-button>
+            @if (pendingCredentialDeleteId() === credential.id) {
+            <div class="inline-confirm" role="group" aria-label="Confirm credential removal">
+              <span>Remove?</span>
+              <button type="button" (click)="deleteCredential(credential.id, $event)">Yes</button>
+              <button type="button" (click)="cancelDeleteCredential($event)">No</button>
+            </div>
+            } @else {
+            <volt-button
+              type="button"
+              variant="outline"
+              size="sm"
+              [disabled]="deletingCredentialId() === credential.id"
+              (click)="requestDeleteCredential(credential.id, $event)"
+            >
+              {{ deletingCredentialId() === credential.id ? 'Removing' : 'Remove' }}
+            </volt-button>
+            }
+          </div>
+        </li>
+        }
+      </ul>
+      }
+    </section>
+  </section>
+
+  <section class="settings-cluster" aria-labelledby="local-ai-settings-title">
+    <h2 id="local-ai-settings-title">Local AI</h2>
+    <section class="setting-group" aria-labelledby="runtime-preferences-title">
+      <div>
+        <h3 id="runtime-preferences-title">Runtime preferences</h3>
+        <p>Runtime path and model lifecycle controls live on the Models screen.</p>
+      </div>
+      <volt-button type="button" variant="outline" size="md" routerLink="/models">
+        Open Models
+      </volt-button>
+    </section>
+  </section>
+
+  <section class="settings-cluster" aria-labelledby="advanced-settings-title">
+    <h2 id="advanced-settings-title">Advanced</h2>
+    <details class="diagnostics" open>
+      <summary>Diagnostics</summary>
+      <div class="diagnostic-actions">
+        <volt-button type="button" variant="outline" size="sm" (click)="refreshDiagnostics()">
+          Refresh diagnostics
+        </volt-button>
+      </div>
+      @if (appInfoError(); as infoError) {
+      <p role="alert">{{ infoError.message }}</p>
+      }
+      <dl>
+        @if (appInfo(); as info) {
+        <div>
+          <dt>Application</dt>
+          <dd>{{ info.name }} {{ info.version }}</dd>
+        </div>
+        <div>
+          <dt>Build</dt>
+          <dd>{{ info.runtime }} · {{ info.buildProfile }}</dd>
+        </div>
+        <div>
+          <dt>Target</dt>
+          <dd>{{ info.target }}</dd>
+        </div>
+        } @if (settings(); as current) {
+        <div>
+          <dt>Settings storage</dt>
+          <dd>Schema {{ current.schemaVersion }} · Revision {{ current.revision }}</dd>
+        </div>
+        } @if (runtimeStatus(); as runtime) {
+        <div>
+          <dt>Runtime</dt>
+          <dd>{{ runtime.availability }} · {{ runtime.ownership.state }}</dd>
+        </div>
+        <div>
+          <dt>Runtime executable</dt>
+          <dd>{{ runtime.executablePath ?? 'Not configured' }}</dd>
+        </div>
+        <div>
+          <dt>Endpoint</dt>
+          <dd>{{ runtime.server.endpoint ?? 'Unavailable' }}</dd>
+        </div>
+        <div>
+          <dt>Runtime checked</dt>
+          <dd>{{ formatTime(runtime.lastCheckedUnixSeconds) }}</dd>
+        </div>
+        } @if (slotStatus(); as slot) {
+        <div>
+          <dt>Loaded model</dt>
+          <dd>{{ slot.loaded?.modelKey ?? 'None' }}</dd>
+        </div>
+        <div>
+          <dt>Model ownership</dt>
+          <dd>{{ slot.ownership.state }}</dd>
+        </div>
+        }
+      </dl>
+    </details>
   </section>
 </section>
