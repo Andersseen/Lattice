@@ -31,7 +31,7 @@ Do not commit secrets, API keys, model credentials, tokens, `.env` files, or pri
 
 Dependency advisory checks run on a schedule and when dependency manifests or lockfiles change.
 
-- JavaScript advisories use `pnpm audit --audit-level high`.
+- JavaScript advisories use `bun audit`.
 - Rust advisories use `cargo audit --deny yanked`.
 - High, critical, withdrawn, or explicitly denied advisories block release qualification until fixed or documented.
 - Unmaintained or unsound RustSec warnings require triage and tracking, but do not fail ordinary PRs unless explicitly escalated.

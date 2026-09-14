@@ -1,8 +1,18 @@
 {
   "mcpServers": {
+    "codebase-memory": {
+      "args": [],
+      "command": "codebase-memory-mcp",
+      "env": {},
+      "type": "stdio"
+    },
     "context7": {
       "type": "http",
       "url": "https://mcp.context7.com/mcp"
+    },
+    "volt-ui": {
+      "type": "http",
+      "url": "https://volt-ui.pages.dev/api/mcp"
     }
   }
 }

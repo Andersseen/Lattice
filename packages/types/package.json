@@ -13,7 +13,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "lint": "pnpm --workspace-root exec eslint packages/types",
+    "lint": "biome check .",
+    "lint:angular": "echo \"No Angular lint for @lattice/types\"",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

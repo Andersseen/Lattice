@@ -3,6 +3,7 @@ dist/
 coverage/
 .angular/
 .turbo/
+.codebase-memory/
 target/
 test-results/
 playwright-report/

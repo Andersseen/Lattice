@@ -8,4 +8,4 @@ For now:
 - Use pull requests for small, reviewed changes.
 - Use OpenSpec changes for significant product or architecture proposals.
 
-Please include your operating system, Node/pnpm versions, Rust version, command output, and reproduction steps when reporting a development issue.
+Please include your operating system, Bun/Node versions, Rust version, command output, and reproduction steps when reporting a development issue.

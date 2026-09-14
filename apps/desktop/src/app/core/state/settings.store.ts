@@ -1,6 +1,6 @@
 import { DOCUMENT } from '@angular/common';
-import { effect, inject, Injectable, signal } from '@angular/core';
-import type { AppError, AppSettings, AppearancePreference } from '@lattice/types';
+import { effect, Injectable, inject, signal } from '@angular/core';
+import type { AppError, AppearancePreference, AppSettings } from '@lattice/types';
 
 import { AppApiService } from '../api/app-api.service';
 import { normalizeSettingsError } from '../api/app-wire';

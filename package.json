@@ -5,48 +5,45 @@
   "description": "A lightweight, local-first workspace for models, agents, tools, and skills.",
   "license": "MIT",
   "type": "module",
-  "packageManager": "pnpm@10.30.1",
+  "packageManager": "bun@1.3.11",
   "engines": {
-    "node": ">=22.0.0",
-    "pnpm": ">=10.0.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@parcel/watcher",
-      "esbuild",
-      "lmdb",
-      "msgpackr-extract"
-    ]
+    "bun": ">=1.3.11",
+    "node": ">=22.0.0"
   },
   "scripts": {
     "dev": "turbo run dev --filter=@lattice/desktop",
-    "build": "turbo run build && pnpm --filter @lattice/desktop tauri:build",
+    "build": "turbo run build && bun --filter @lattice/desktop tauri:build",
     "build:web": "turbo run build",
-    "lint": "turbo run lint",
+    "lint": "bun run lint:biome && bun run lint:angular",
+    "lint:biome": "turbo run lint",
+    "lint:angular": "turbo run lint:angular",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test && cargo test --workspace",
-    "e2e": "pnpm --filter @lattice/desktop e2e",
-    "format": "prettier --write . && cargo fmt --all",
-    "format:check": "prettier --check . && cargo fmt --all --check",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings",
+    "e2e": "bun --filter @lattice/desktop e2e",
+    "format": "biome check --write . && cargo fmt --all",
+    "format:check": "biome check . && cargo fmt --all --check",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run contracts:check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings",
     "contracts:generate": "cargo run -p lattice-core --bin generate_types",
     "contracts:check": "cargo test -p lattice-core committed_typescript_bindings_match_rust_contract",
     "agentyx:doctor": "agentyx doctor --check",
     "agentyx:install:dry-run": "agentyx install --dry-run",
     "agentyx:install": "agentyx install",
-    "openspec:validate": "pnpm dlx @fission-ai/openspec@1.12.0 validate --specs"
+    "openspec:validate": "bunx @fission-ai/openspec@1.12.0 validate --specs"
   },
   "devDependencies": {
     "@agentyx/cli": "0.5.0",
     "@angular-eslint/eslint-plugin": "22.2.0",
     "@angular-eslint/eslint-plugin-template": "22.2.0",
     "@angular-eslint/template-parser": "22.2.0",
-    "@eslint/js": "10.0.1",
+    "@biomejs/biome": "2.5.13",
     "@playwright/test": "1.63.0",
+    "@typescript-eslint/parser": "8.69.0",
     "eslint": "10.10.0",
-    "prettier": "3.9.6",
     "turbo": "2.10.12",
-    "typescript": "6.0.3",
-    "typescript-eslint": "8.69.0"
-  }
+    "typescript": "6.0.3"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
 }

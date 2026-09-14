@@ -11,7 +11,7 @@ The initial foundation used local CSS and no UI or motion libraries. The next vi
 
 Admit `@voltui/components`, `angular-movement`, `lumen-icons`, `quartz-headless` and `@angular/forms` to `apps/desktop`. Each package has a small current consumer in the shell or home page, and Angular remains the only owner of presentation behavior.
 
-Admit `@agentyx/cli` as a root dev dependency with `.agentyx.json`, `.agentyx.lock.json`, project-local Codex skills, `.codex/config.toml`, `pnpm agentyx:doctor`, `pnpm agentyx:install:dry-run` and `pnpm agentyx:install`. Agentyx is contributor tooling for project-local skill/MCP planning and installation. It is not a Lattice runtime dependency and does not implement product skills or MCP behavior.
+Admit `@agentyx/cli` as a root dev dependency with `.agentyx.json`, `.agentyx.lock.json`, project-local Codex skills, `.codex/config.toml`, `bun run agentyx:doctor`, `bun run agentyx:install:dry-run` and `bun run agentyx:install`. Agentyx is contributor tooling for project-local skill/MCP planning and installation. It is not a Lattice runtime dependency and does not implement product skills or MCP behavior.
 
 Do not add the unscoped `agentyx` npm package. It is not the Andersseen Agentyx package family used here.
 

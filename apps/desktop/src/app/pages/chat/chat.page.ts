@@ -1,3 +1,4 @@
+import type { ElementRef } from '@angular/core';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -8,10 +9,9 @@ import {
   signal,
   viewChild
 } from '@angular/core';
-import type { ElementRef } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { VoltButton } from '@voltui/components';
 import type { ConversationSummary } from '@lattice/types';
+import { VoltButton } from '@voltui/components';
 
 import { ChatStore } from '../../core/state/chat.store';
 import { ConversationsStore } from '../../core/state/conversations.store';

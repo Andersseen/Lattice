@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 const QWEN_MODEL_KEY = 'qwen/qwen2.5-0.5b-instruct';
 
@@ -156,7 +157,7 @@ async function configureAndStartRuntime(page: Page): Promise<void> {
   await page.getByRole('textbox', { name: 'Path' }).fill('/usr/local/bin/lms');
   await page.getByRole('button', { name: 'Configure' }).click();
   await page.getByRole('button', { name: 'Probe' }).click();
-  await expect(page.getByText('Stopped')).toBeVisible();
+  await expect(page.getByText('Stopped', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Start' }).click();
   await expect(page.getByText('Running', { exact: true })).toBeVisible();
 }

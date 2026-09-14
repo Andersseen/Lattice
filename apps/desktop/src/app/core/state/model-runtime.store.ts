@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, Injectable, inject, signal } from '@angular/core';
 import type { AppError, ModelRuntimeStatus } from '@lattice/types';
 
 import { AppApiService } from '../api/app-api.service';

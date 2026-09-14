@@ -1,8 +1,7 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, Injectable, inject, signal } from '@angular/core';
 import type { AppError, AppInfo } from '@lattice/types';
-
-import { normalizeAppError } from '../api/app-wire';
 import { AppApiService } from '../api/app-api.service';
+import { normalizeAppError } from '../api/app-wire';
 import { RefreshGate } from './refresh-gate';
 
 @Injectable({ providedIn: 'root' })

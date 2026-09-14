@@ -8,8 +8,8 @@ import {
   signal
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { VoltButton } from '@voltui/components';
 import type { AppearancePreference } from '@lattice/types';
+import { VoltButton } from '@voltui/components';
 
 import { AppInfoStore } from '../../core/state/app-info.store';
 import { CredentialsStore } from '../../core/state/credentials.store';

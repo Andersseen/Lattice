@@ -368,17 +368,17 @@
     {
       "kind": "mcp",
       "path": ".codex/config.toml",
-      "servers": ["context7"],
+      "servers": ["codebase-memory", "context7"],
       "targets": ["codex"],
-      "hash": "8de610d7f34bd3672be4ad57d1a6ef5f9bf684411196ce7ee5be181f3937666b",
+      "hash": "072f549fad3ca09beb09d38e32e6081913c31a3d01d1632eabfc8086a94b25ac",
       "created": true
     },
     {
       "kind": "mcp",
       "path": ".mcp.json",
-      "servers": ["context7"],
+      "servers": ["codebase-memory", "context7"],
       "targets": ["claude"],
-      "hash": "fce4dbd6f3476e6ba72f643e541aa12c70b4a13f129021b9cbcca3fd3bece200",
+      "hash": "34badc9d3060517cb72325edc5f2c93bab53523c9356c4106a88a04a13fac3a6",
       "created": true
     }
   ]
