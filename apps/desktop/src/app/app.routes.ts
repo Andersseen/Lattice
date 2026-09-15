@@ -12,20 +12,19 @@ export const routes: Routes = [
   },
   {
     path: 'models',
-    loadComponent: () => import('./pages/models/models.page').then((module) => module.ModelsPage)
+    loadComponent: () => import('./pages/models/models.page')
   },
   {
     path: 'chat',
-    loadComponent: () => import('./pages/chat/chat.page').then((module) => module.ChatPage)
+    loadComponent: () => import('./pages/chat/chat.page')
   },
   {
     path: 'history',
-    loadComponent: () => import('./pages/history/history.page').then((module) => module.HistoryPage)
+    loadComponent: () => import('./pages/history/history.page')
   },
   {
     path: 'settings',
-    loadComponent: () =>
-      import('./pages/settings/settings.page').then((module) => module.SettingsPage)
+    loadComponent: () => import('./pages/settings/settings.page')
   },
   {
     path: '**',

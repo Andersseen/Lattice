@@ -71,7 +71,7 @@ test('a chat response can be stopped mid-stream', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
 
-  await expect(page.locator('.message.assistant .status-tag')).toHaveText('Cancelled');
+  await expect(page.locator('.message.assistant').getByText('Cancelled')).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Message' })).toBeEnabled();
 });
 
@@ -99,7 +99,7 @@ test('a conversation can be reopened, replaced by a new chat, and deleted from f
   await expect(page.getByText('Remember this local chat')).toBeVisible();
 
   await page.getByRole('button', { name: 'Delete' }).click();
-  await page.getByRole('button', { name: 'Yes' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page.getByText('No conversations yet.')).toBeVisible();
 });
 
@@ -108,16 +108,16 @@ test('settings can be edited and advanced diagnostics are accessible', async ({ 
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
 
   await expect(page.getByRole('heading', { name: 'General' })).toBeVisible();
-  await page.getByRole('button', { name: 'Dark' }).click();
+  await page.getByRole('tab', { name: 'Dark' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-appearance', 'dark');
   await expect(page.getByText('Selected: Dark')).toBeVisible();
   await page.getByRole('link', { name: 'Chat', exact: true }).click();
   await expect(page.locator('html')).not.toHaveAttribute('data-appearance', 'dark');
 
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
-  await page.getByRole('button', { name: 'Light' }).click();
+  await page.getByRole('tab', { name: 'Light' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-appearance', 'light');
-  await page.getByRole('button', { name: 'Dark' }).click();
+  await page.getByRole('tab', { name: 'Dark' }).click();
   await page.getByRole('spinbutton', { name: 'Minutes' }).fill('12');
   await page.getByRole('button', { name: 'Save' }).click();
 
@@ -141,13 +141,15 @@ test('a credential can be added, replaced, and removed in browser preview', asyn
 
   const credentialCard = page.locator('.credential-card');
   await expect(credentialCard.getByText('Personal provider key', { exact: true })).toBeVisible();
-  await expect(credentialCard.getByText('Stored securely · local-preview')).toBeVisible();
+  await expect(credentialCard.getByText('Stored securely')).toBeVisible();
+  await expect(credentialCard.getByText('local-preview')).toBeVisible();
 
   await credentialCard.getByRole('button', { name: 'Replace' }).click();
-  await expect(credentialCard.getByText('Stored securely · local-preview')).toBeVisible();
+  await expect(credentialCard.getByText('Stored securely')).toBeVisible();
+  await expect(credentialCard.getByText('local-preview')).toBeVisible();
 
   await credentialCard.getByRole('button', { name: 'Remove' }).click();
-  await credentialCard.getByRole('button', { name: 'Yes' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(page.getByText('No credentials yet.')).toBeVisible();
 });
 

@@ -1,19 +1,53 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import type { TemplateRef } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  signal,
+  ViewContainerRef,
+  viewChild
+} from '@angular/core';
 import { Router } from '@angular/router';
-import { VoltButton } from '@voltui/components';
+import {
+  VoltBadge,
+  VoltButton,
+  VoltCard,
+  VoltCardContent,
+  VoltCardDescription,
+  VoltCardFooter,
+  VoltCardHeader,
+  VoltCardTitle
+} from '@voltui/components';
+import { LmnTrashIcon } from 'lumen-icons/trash';
+import { DialogService } from 'quartz-headless';
 
 import { ConversationsStore } from '../../core/state/conversations.store';
 
 @Component({
   selector: 'lat-history-page',
-  imports: [VoltButton],
+  imports: [
+    LmnTrashIcon,
+    VoltBadge,
+    VoltButton,
+    VoltCard,
+    VoltCardContent,
+    VoltCardDescription,
+    VoltCardFooter,
+    VoltCardHeader,
+    VoltCardTitle
+  ],
   templateUrl: './history.page.html',
   styleUrl: './history.page.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class HistoryPage {
+export default class HistoryPage {
   private readonly conversationsStore = inject(ConversationsStore);
   private readonly router = inject(Router);
+  private readonly dialog = inject(DialogService);
+  private readonly viewContainerRef = inject(ViewContainerRef);
+  private readonly deleteConversationDialog = viewChild.required<TemplateRef<unknown>>(
+    'deleteConversationDialog'
+  );
 
   protected readonly conversations = this.conversationsStore.conversations;
   protected readonly error = this.conversationsStore.error;
@@ -37,15 +71,23 @@ export class HistoryPage {
   protected requestDelete(conversationId: string, event: Event): void {
     event.stopPropagation();
     this.pendingDeleteId.set(conversationId);
+    this.dialog.open(this.deleteConversationDialog(), this.viewContainerRef, {
+      ariaLabelledBy: 'history-delete-title',
+      ariaDescribedBy: 'history-delete-description',
+      panelClass: 'confirmation-dialog-panel',
+      backdropClass: 'confirmation-dialog-backdrop'
+    });
   }
 
-  protected cancelDelete(event: Event): void {
-    event.stopPropagation();
+  protected clearPendingDelete(): void {
     this.pendingDeleteId.set(null);
   }
 
-  protected delete(conversationId: string, event: Event): void {
-    event.stopPropagation();
+  protected deletePendingConversation(): void {
+    const conversationId = this.pendingDeleteId();
+    if (conversationId === null) {
+      return;
+    }
     this.pendingDeleteId.set(null);
     void this.conversationsStore.delete(conversationId);
   }

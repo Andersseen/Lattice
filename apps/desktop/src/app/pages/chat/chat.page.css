@@ -67,34 +67,6 @@
   text-transform: uppercase;
 }
 
-.conversation-button {
-  display: grid;
-  gap: 0.18rem;
-  width: 100%;
-  min-height: 3.5rem;
-  border: 1px solid transparent;
-  border-radius: 0.45rem;
-  color: var(--color-text);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  padding: 0.65rem 2.5rem 0.65rem 0.7rem;
-  text-align: left;
-}
-
-.conversation-button:hover,
-.conversation-button:focus-visible,
-.conversation-button.selected {
-  border-color: var(--color-border);
-  background: var(--color-surface-strong);
-}
-
-.conversation-button:disabled,
-.delete-button:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
 .conversation-title,
 .conversation-meta {
   min-width: 0;
@@ -113,44 +85,10 @@
   font-size: 0.82rem;
 }
 
-.delete-button {
+.delete-pending {
   position: absolute;
   top: 0.55rem;
   right: 0.35rem;
-  min-height: 2rem;
-  border: 0;
-  border-radius: 0.35rem;
-  color: var(--color-muted);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.75rem;
-}
-
-.delete-button:hover,
-.delete-button:focus-visible {
-  color: var(--color-text);
-  background: var(--color-surface);
-}
-
-.delete-confirm {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0.25rem 0.3rem 0;
-  color: var(--color-muted);
-  font-size: 0.8rem;
-}
-
-.delete-confirm button {
-  min-height: 1.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.35rem;
-  color: var(--color-text);
-  background: var(--color-surface);
-  cursor: pointer;
-  font: inherit;
 }
 
 .chat-main {
@@ -285,11 +223,6 @@ h2 {
   color: var(--color-accent);
 }
 
-.status-tag {
-  color: var(--color-muted);
-  font-size: 0.75rem;
-}
-
 .composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -300,13 +233,12 @@ h2 {
   background: color-mix(in srgb, var(--color-surface) 88%, var(--color-background));
 }
 
-.composer-label {
+.composer-field {
   display: grid;
   gap: 0.4rem;
   min-width: 0;
 }
 
-.composer-label span,
 .composer-reason {
   color: var(--color-muted);
   font-size: 0.85rem;
@@ -319,21 +251,27 @@ h2 {
   font-weight: 500;
 }
 
-textarea {
-  width: 100%;
+volt-textarea {
   min-height: 4.2rem;
   max-height: 12rem;
-  resize: vertical;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 0.45rem;
-  color: var(--color-text);
-  background: var(--color-surface);
-  font: inherit;
-  padding: 0.6rem 0.75rem;
 }
 
 .actions {
   display: flex;
+  gap: 0.75rem;
+}
+
+.confirm-card {
+  display: block;
+  border-radius: 0.5rem;
+}
+
+.confirm-card p {
+  color: var(--color-muted);
+}
+
+.confirm-actions {
+  justify-content: flex-end;
   gap: 0.75rem;
 }
 

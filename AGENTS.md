@@ -45,6 +45,25 @@ cargo test --workspace
 - Query the Volt UI MCP server or load the `volt-ui` skill before inventing a UI atom or guessing component inputs/selectors.
 - Create local UI primitives only when Volt UI does not provide the atom or the requirement cannot be expressed by composing Volt UI components.
 
+## UI Foundation Policy
+
+Lattice's Angular UI uses the Andersseen UI stack:
+
+- Visual primitives: Volt UI.
+- Headless interaction primitives: Quartz Headless.
+- Product icons: Lumen Icons.
+- Intentional application motion: Angular Movement.
+
+Rules:
+
+- Keep semantic and layout HTML as native HTML.
+- Do not recreate a reusable visual primitive when Volt UI provides it.
+- Do not recreate headless interaction behavior when Quartz Headless provides it.
+- All product icons come from Lumen Icons.
+- All intentional application motion uses Angular Movement.
+- Lattice-specific components compose these libraries rather than replace them.
+- Missing reusable primitives should be classified as Volt UI, Quartz Headless, Lumen Icons, Angular Movement, or genuinely Lattice-specific gaps before adding Lattice-local duplicates.
+
 ## Rust Conventions
 
 - Keep `unsafe` out of the project.
