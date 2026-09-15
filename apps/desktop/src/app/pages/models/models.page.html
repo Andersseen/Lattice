@@ -12,16 +12,20 @@
     <volt-button type="button" variant="outline" size="sm" (click)="refresh()">Retry</volt-button>
   </div>
   } @if (status(); as runtimeStatus) {
-  <section class="hero-card" aria-label="Local AI summary">
-    <article>
+  <section class="hero-grid" aria-label="Local AI summary">
+    <volt-card class="summary-card">
+      <volt-card-content>
       <span class="label">Runtime</span>
       <strong>
-        <span class="dot" [class.ready]="runtimeIsRunning()" aria-hidden="true"></span>
-        {{ runtimeLabel() }}
+        <volt-badge [variant]="runtimeIsRunning() ? 'secondary' : 'outline'">
+          {{ runtimeLabel() }}
+        </volt-badge>
       </strong>
       <p>{{ runtimeStatus.message }}</p>
-    </article>
-    <article>
+      </volt-card-content>
+    </volt-card>
+    <volt-card class="summary-card">
+      <volt-card-content>
       <span class="label">Loaded model</span>
       <strong>{{ loadedModelLabel() }}</strong>
       @if (slotStatus()?.loaded?.sizeBytes; as loadedSize) {
@@ -29,16 +33,19 @@
       } @else {
       <p>Load one installed model before chatting.</p>
       }
-    </article>
+      </volt-card-content>
+    </volt-card>
   </section>
 
-  <section class="runtime-card" aria-labelledby="runtime-lifecycle-title">
+  <volt-card class="runtime-card" aria-labelledby="runtime-lifecycle-title">
+    <volt-card-content class="runtime-card-content">
     <div>
       <h2 id="runtime-lifecycle-title">Runtime</h2>
       <p>Start the local runtime when you want to use installed models.</p>
     </div>
     <div class="actions">
       <volt-button type="button" size="md" [disabled]="!canStart()" (click)="start()">
+        <lmn-play slot="leading" [size]="14" aria-hidden="true" />
         {{ isStarting() ? 'Starting' : 'Start' }}
       </volt-button>
       <volt-button
@@ -48,6 +55,7 @@
         [disabled]="!canStop()"
         (click)="stop()"
       >
+        <lmn-stop slot="leading" [size]="14" aria-hidden="true" />
         {{ isStopping() ? 'Stopping' : 'Stop' }}
       </volt-button>
       @if (isOperationPending()) {
@@ -56,24 +64,26 @@
       </volt-button>
       }
     </div>
-  </section>
+    </volt-card-content>
+  </volt-card>
 
-  <section class="runtime-card" aria-labelledby="runtime-path-title">
+  <volt-card class="runtime-card" aria-labelledby="runtime-path-title">
+    <volt-card-content class="runtime-card-content">
     <div>
       <h2 id="runtime-path-title">Runtime executable</h2>
       <p>Use the approved local runtime executable path.</p>
     </div>
 
-    <label>
-      <span>Path</span>
-      <input
+    <volt-form-field>
+      <volt-label htmlFor="runtime-executable">Path</volt-label>
+      <volt-input
+        id="runtime-executable"
         type="text"
-        spellcheck="false"
         autocomplete="off"
         [value]="executablePath()"
-        (input)="setExecutablePath($event)"
+        (valueChange)="setExecutablePathValue($event)"
       />
-    </label>
+    </volt-form-field>
 
     <div class="actions">
       <volt-button
@@ -83,6 +93,7 @@
         [disabled]="!canConfigure()"
         (click)="configure()"
       >
+        <lmn-folder-open slot="leading" [size]="14" aria-hidden="true" />
         {{ isSaving() ? 'Saving' : 'Configure' }}
       </volt-button>
       <volt-button
@@ -92,12 +103,15 @@
         [disabled]="!canProbe() || isProbing()"
         (click)="probe()"
       >
+        <lmn-arrow-path slot="leading" [size]="14" aria-hidden="true" />
         {{ isProbing() ? 'Checking' : 'Probe' }}
       </volt-button>
     </div>
-  </section>
+    </volt-card-content>
+  </volt-card>
 
-  <section class="model-card" aria-labelledby="installed-models-title">
+  <volt-card class="model-card" aria-labelledby="installed-models-title">
+    <volt-card-content class="model-card-content">
     <div>
       <h2 id="installed-models-title">Installed models</h2>
       @if (slotStatus(); as slot) {
@@ -118,6 +132,8 @@
     <ul class="model-list">
       @for (model of slot.installed; track model.modelKey) {
       <li>
+        <volt-card class="model-item-card">
+          <volt-card-content class="model-item-content">
         <div>
           <strong>{{ model.displayName }}</strong>
           <span>{{ modelSubtitle(model) }}</span>
@@ -131,6 +147,8 @@
         >
           {{ isLoadingModel() ? 'Loading' : 'Load' }}
         </volt-button>
+          </volt-card-content>
+        </volt-card>
       </li>
       }
     </ul>
@@ -153,11 +171,14 @@
       }
     </div>
     }
-  </section>
+    </volt-card-content>
+  </volt-card>
 
-  <details class="details">
-    <summary>Advanced diagnostics</summary>
-    <dl>
+  <volt-accordion class="details" type="single" value="diagnostics" [collapsible]="true">
+    <volt-accordion-item value="diagnostics">
+      <volt-accordion-trigger>Advanced diagnostics</volt-accordion-trigger>
+      <volt-accordion-content>
+        <dl>
       <div>
         <dt>Executable</dt>
         <dd>{{ runtimeStatus.executablePath ?? 'Not configured' }}</dd>
@@ -208,7 +229,9 @@
         <dd>{{ formatTime(slot.lastCheckedUnixSeconds) }}</dd>
       </div>
       }
-    </dl>
-  </details>
+        </dl>
+      </volt-accordion-content>
+    </volt-accordion-item>
+  </volt-accordion>
   } }
 </section>

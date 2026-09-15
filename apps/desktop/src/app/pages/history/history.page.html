@@ -16,33 +16,34 @@
   } @else {
   <ul class="conversation-list">
     @for (conversation of conversations(); track conversation.id) {
-    <li class="conversation-card" (click)="open(conversation.id)">
-      <div class="summary">
-        <strong>{{ conversation.title }}</strong>
-        <span class="meta">
-          {{ conversation.messageCount }} message{{ conversation.messageCount === 1 ? '' : 's' }}
-          @if (conversation.lastStatus && conversation.lastStatus !== 'complete') { ·
-          <span class="status-tag">{{ conversation.lastStatus }}</span>
+    <li>
+      <volt-card class="conversation-card" (click)="open(conversation.id)">
+        <volt-card-content class="conversation-card-content">
+          <div class="summary">
+            <strong>{{ conversation.title }}</strong>
+            <span class="meta">
+              {{ conversation.messageCount }} message{{ conversation.messageCount === 1 ? '' : 's'
+              }} @if (conversation.lastStatus && conversation.lastStatus !== 'complete') {
+              <volt-badge variant="outline">{{ conversation.lastStatus }}</volt-badge>
+              }
+            </span>
+          </div>
+          @if (pendingDeleteId() === conversation.id) {
+          <volt-badge variant="destructive">Pending deletion</volt-badge>
+          } @else {
+          <volt-button
+            type="button"
+            variant="outline"
+            size="sm"
+            [disabled]="deletingId() === conversation.id"
+            (click)="requestDelete(conversation.id, $event)"
+          >
+            <lmn-trash slot="leading" [size]="14" aria-hidden="true" />
+            {{ deletingId() === conversation.id ? 'Deleting' : 'Delete' }}
+          </volt-button>
           }
-        </span>
-      </div>
-      @if (pendingDeleteId() === conversation.id) {
-      <div class="inline-confirm" role="group" aria-label="Confirm conversation deletion">
-        <span>Delete?</span>
-        <button type="button" (click)="delete(conversation.id, $event)">Yes</button>
-        <button type="button" (click)="cancelDelete($event)">No</button>
-      </div>
-      } @else {
-      <volt-button
-        type="button"
-        variant="outline"
-        size="sm"
-        [disabled]="deletingId() === conversation.id"
-        (click)="requestDelete(conversation.id, $event)"
-      >
-        {{ deletingId() === conversation.id ? 'Deleting' : 'Delete' }}
-      </volt-button>
-      }
+        </volt-card-content>
+      </volt-card>
     </li>
     }
   </ul>
@@ -58,4 +59,36 @@
     {{ isLoading() ? 'Loading' : 'Load more' }}
   </volt-button>
   } }
+
+  <ng-template #deleteConversationDialog let-dialog>
+    <volt-card class="confirm-card">
+      <volt-card-header>
+        <volt-card-title id="history-delete-title">Delete conversation?</volt-card-title>
+        <volt-card-description id="history-delete-description">
+          This removes the conversation from local history.
+        </volt-card-description>
+      </volt-card-header>
+      <volt-card-content>
+        <p>Loaded chats are not recoverable after deletion.</p>
+      </volt-card-content>
+      <volt-card-footer class="confirm-actions">
+        <volt-button
+          type="button"
+          variant="outline"
+          size="md"
+          (click)="clearPendingDelete(); dialog.close()"
+        >
+          Cancel
+        </volt-button>
+        <volt-button
+          type="button"
+          variant="destructive"
+          size="md"
+          (click)="dialog.close(); deletePendingConversation()"
+        >
+          Delete
+        </volt-button>
+      </volt-card-footer>
+    </volt-card>
+  </ng-template>
 </section>

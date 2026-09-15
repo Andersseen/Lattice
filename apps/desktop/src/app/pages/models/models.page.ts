@@ -7,19 +7,51 @@ import {
   signal
 } from '@angular/core';
 import type { ModelDescriptor } from '@lattice/types';
-import { VoltButton } from '@voltui/components';
+import {
+  VoltAccordion,
+  VoltAccordionContent,
+  VoltAccordionItem,
+  VoltAccordionTrigger,
+  VoltBadge,
+  VoltButton,
+  VoltCard,
+  VoltCardContent,
+  VoltFormField,
+  VoltInput,
+  VoltLabel
+} from '@voltui/components';
+import { LmnArrowPathIcon } from 'lumen-icons/arrow-path';
+import { LmnFolderOpenIcon } from 'lumen-icons/folder-open';
+import { LmnPlayIcon } from 'lumen-icons/play';
+import { LmnStopIcon } from 'lumen-icons/stop';
 
 import { ModelRuntimeStore } from '../../core/state/model-runtime.store';
 import { ModelSlotStore } from '../../core/state/model-slot.store';
 
 @Component({
   selector: 'lat-models-page',
-  imports: [VoltButton],
+  imports: [
+    LmnArrowPathIcon,
+    LmnFolderOpenIcon,
+    LmnPlayIcon,
+    LmnStopIcon,
+    VoltAccordion,
+    VoltAccordionContent,
+    VoltAccordionItem,
+    VoltAccordionTrigger,
+    VoltBadge,
+    VoltButton,
+    VoltCard,
+    VoltCardContent,
+    VoltFormField,
+    VoltInput,
+    VoltLabel
+  ],
   templateUrl: './models.page.html',
   styleUrl: './models.page.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ModelsPage {
+export default class ModelsPage {
   private readonly runtimeStore = inject(ModelRuntimeStore);
   private readonly slotStore = inject(ModelSlotStore);
 
@@ -91,6 +123,10 @@ export class ModelsPage {
   protected setExecutablePath(event: Event): void {
     const input = event.target as HTMLInputElement;
     this.executablePath.set(input.value);
+  }
+
+  protected setExecutablePathValue(value: string): void {
+    this.executablePath.set(value);
   }
 
   protected configure(): void {

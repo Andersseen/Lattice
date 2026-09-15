@@ -1,4 +1,4 @@
-import type { ElementRef } from '@angular/core';
+import type { ElementRef, TemplateRef } from '@angular/core';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -7,11 +7,29 @@ import {
   inject,
   input,
   signal,
+  ViewContainerRef,
   viewChild
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import type { ConversationSummary } from '@lattice/types';
-import { VoltButton } from '@voltui/components';
+import {
+  VoltBadge,
+  VoltButton,
+  VoltCard,
+  VoltCardContent,
+  VoltCardDescription,
+  VoltCardFooter,
+  VoltCardHeader,
+  VoltCardTitle,
+  VoltFormField,
+  VoltLabel,
+  VoltTextarea
+} from '@voltui/components';
+import { MoveAnimateDirective } from 'angular-movement';
+import { LmnPaperAirplaneIcon } from 'lumen-icons/paper-airplane';
+import { LmnStopIcon } from 'lumen-icons/stop';
+import { LmnTrashIcon } from 'lumen-icons/trash';
+import { DialogService } from 'quartz-headless';
 
 import { ChatStore } from '../../core/state/chat.store';
 import { ConversationsStore } from '../../core/state/conversations.store';
@@ -20,18 +38,40 @@ import { ModelSlotStore } from '../../core/state/model-slot.store';
 
 @Component({
   selector: 'lat-chat-page',
-  imports: [RouterLink, VoltButton],
+  imports: [
+    RouterLink,
+    MoveAnimateDirective,
+    LmnPaperAirplaneIcon,
+    LmnStopIcon,
+    LmnTrashIcon,
+    VoltBadge,
+    VoltButton,
+    VoltCard,
+    VoltCardContent,
+    VoltCardDescription,
+    VoltCardFooter,
+    VoltCardHeader,
+    VoltCardTitle,
+    VoltFormField,
+    VoltLabel,
+    VoltTextarea
+  ],
   templateUrl: './chat.page.html',
   styleUrl: './chat.page.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ChatPage {
+export default class ChatPage {
   private readonly chatStore = inject(ChatStore);
   private readonly conversationsStore = inject(ConversationsStore);
   private readonly runtimeStore = inject(ModelRuntimeStore);
   private readonly slotStore = inject(ModelSlotStore);
   private readonly router = inject(Router);
+  private readonly dialog = inject(DialogService);
+  private readonly viewContainerRef = inject(ViewContainerRef);
   private readonly transcriptViewport = viewChild<ElementRef<HTMLElement>>('transcriptViewport');
+  private readonly deleteConversationDialog = viewChild.required<TemplateRef<unknown>>(
+    'deleteConversationDialog'
+  );
 
   /** Bound from the `?conversationId=` query param (see `withComponentInputBinding`). */
   readonly conversationId = input<string>();
@@ -137,8 +177,11 @@ export class ChatPage {
   }
 
   protected setDraft(event: Event): void {
-    const target = event.target as HTMLTextAreaElement;
-    this.draft.set(target.value);
+    this.draft.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  protected setDraftValue(value: string): void {
+    this.draft.set(value);
   }
 
   protected onComposerKeydown(event: KeyboardEvent): void {
@@ -177,15 +220,23 @@ export class ChatPage {
   protected requestDelete(conversationId: string, event: Event): void {
     event.stopPropagation();
     this.pendingDeleteId.set(conversationId);
+    this.dialog.open(this.deleteConversationDialog(), this.viewContainerRef, {
+      ariaLabelledBy: 'delete-conversation-title',
+      ariaDescribedBy: 'delete-conversation-description',
+      panelClass: 'confirmation-dialog-panel',
+      backdropClass: 'confirmation-dialog-backdrop'
+    });
   }
 
-  protected cancelDelete(event: Event): void {
-    event.stopPropagation();
+  protected clearPendingDelete(): void {
     this.pendingDeleteId.set(null);
   }
 
-  protected async deleteConversation(conversationId: string, event: Event): Promise<void> {
-    event.stopPropagation();
+  protected async deletePendingConversation(): Promise<void> {
+    const conversationId = this.pendingDeleteId();
+    if (conversationId === null) {
+      return;
+    }
     this.pendingDeleteId.set(null);
     await this.conversationsStore.delete(conversationId);
     if (this.activeConversationId() === conversationId) {

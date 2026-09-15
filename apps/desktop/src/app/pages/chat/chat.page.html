@@ -1,6 +1,12 @@
 <section class="chat" aria-labelledby="chat-title">
   <aside class="chat-sidebar" aria-label="Conversations">
-    <volt-button type="button" size="md" [disabled]="isStreaming()" (click)="newChat()">
+    <volt-button
+      type="button"
+      size="md"
+      [disabled]="isStreaming()"
+      (click)="newChat()"
+    >
+      <lmn-paper-airplane slot="leading" [size]="14" aria-hidden="true" />
       New chat
     </volt-button>
 
@@ -18,40 +24,46 @@
       <p class="side-status">No conversations yet.</p>
       } @else {
       <ol class="conversation-list">
-        @for (conversation of conversations(); track conversation.id; let index = $index) { @if
-        (conversationGroup(index, conversations()); as group) {
+        @for (conversation of conversations(); track conversation.id; let index
+        = $index) { @if (conversationGroup(index, conversations()); as group) {
         <li class="conversation-group">{{ group }}</li>
         }
         <li>
-          <button
+          <volt-button
             type="button"
-            class="conversation-button"
-            [class.selected]="activeConversationId() === conversation.id"
+            variant="ghost"
+            size="md"
+            [customClass]="
+              activeConversationId() === conversation.id
+                ? 'conversation-button selected'
+                : 'conversation-button'
+            "
             [disabled]="isStreaming()"
             (click)="openConversation(conversation.id)"
           >
             <span class="conversation-title">{{ conversation.title }}</span>
             <span class="conversation-meta">
-              {{ conversationTime(conversation) }} · {{ conversation.messageCount }} message{{
-              conversation.messageCount === 1 ? '' : 's' }}
+              {{ conversationTime(conversation) }} · {{
+              conversation.messageCount }} message{{ conversation.messageCount
+              === 1 ? '' : 's' }}
             </span>
-          </button>
+          </volt-button>
           @if (pendingDeleteId() === conversation.id) {
-          <div class="delete-confirm" role="group" aria-label="Confirm conversation deletion">
-            <span>Delete?</span>
-            <button type="button" (click)="deleteConversation(conversation.id, $event)">Yes</button>
-            <button type="button" (click)="cancelDelete($event)">No</button>
-          </div>
+          <volt-badge variant="destructive" class="delete-pending"
+            >Pending</volt-badge
+          >
           } @else {
-          <button
+          <volt-button
             type="button"
+            variant="ghost"
+            size="icon"
             class="delete-button"
             [disabled]="deletingConversationId() === conversation.id || isStreaming()"
-            [attr.aria-label]="'Delete ' + conversation.title"
             (click)="requestDelete(conversation.id, $event)"
           >
-            Delete
-          </button>
+            <lmn-trash [size]="14" aria-hidden="true" />
+            <span class="sr-only">Delete {{ conversation.title }}</span>
+          </volt-button>
           }
         </li>
         }
@@ -66,10 +78,15 @@
         <p class="eyebrow">Local AI</p>
         <h1 id="chat-title">Chat</h1>
       </div>
-      <div class="model-pill" [class.ready]="loadedModelKey() !== null" aria-live="polite">
+      <volt-badge
+        class="model-pill"
+        [class.ready]="loadedModelKey() !== null"
+        [variant]="loadedModelKey() === null ? 'outline' : 'secondary'"
+        aria-live="polite"
+      >
         <span aria-hidden="true"></span>
         {{ loadedModelKey() ?? 'No model loaded' }}
-      </div>
+      </volt-badge>
     </header>
 
     @if (isLoadingConversation()) {
@@ -93,13 +110,22 @@
         <h2>{{ state.title }}</h2>
         <p>{{ state.message }}</p>
         @switch (state.action) { @case ('configure') {
-        <volt-button type="button" routerLink="/models" size="md">Configure runtime</volt-button>
+        <volt-button type="button" routerLink="/models" size="md"
+          >Configure runtime</volt-button
+        >
         } @case ('start') {
-        <volt-button type="button" size="md" [disabled]="!canStart()" (click)="startRuntime()">
+        <volt-button
+          type="button"
+          size="md"
+          [disabled]="!canStart()"
+          (click)="startRuntime()"
+        >
           {{ isStarting() ? 'Starting' : 'Start runtime' }}
         </volt-button>
         } @case ('model') {
-        <volt-button type="button" routerLink="/models" size="md">Choose model</volt-button>
+        <volt-button type="button" routerLink="/models" size="md"
+          >Choose model</volt-button
+        >
         } }
       </div>
       } @else if (transcript().length === 0) {
@@ -108,49 +134,112 @@
         <p>Start a local conversation with the loaded model.</p>
       </div>
       } @for (entry of transcript(); track $index) {
-      <article class="message" [class.assistant]="entry.role === 'assistant'">
-        <span class="role">{{ entry.role === 'assistant' ? 'Lattice' : 'You' }}</span>
+      <article
+        class="message"
+        [class.assistant]="entry.role === 'assistant'"
+        move="fade-up"
+        [moveDuration]="140"
+      >
+        <span class="role"
+          >{{ entry.role === 'assistant' ? 'Lattice' : 'You' }}</span
+        >
         <p class="text">
-          {{ entry.text }}@if (entry.status === 'streaming') {<span class="cursor">▍</span>}
+          {{ entry.text }}@if (entry.status === 'streaming') {<span
+            class="cursor"
+            >▍</span
+          >}
         </p>
         @if (entry.status === 'cancelled') {
-        <span class="status-tag">Cancelled</span>
+        <volt-badge variant="outline">Cancelled</volt-badge>
         } @if (entry.status === 'failed') {
-        <span class="status-tag">Failed</span>
+        <volt-badge variant="destructive">Failed</volt-badge>
         } @if (entry.status === 'interrupted') {
-        <span class="status-tag">Interrupted; not resumed automatically</span>
+        <volt-badge variant="secondary"
+          >Interrupted; not resumed automatically</volt-badge
+        >
         }
       </article>
       }
     </section>
 
     <form class="composer" (submit)="$event.preventDefault(); send()">
-      <label class="composer-label">
-        <span>Message</span>
-        <textarea
-          rows="3"
+      <volt-form-field class="composer-field">
+        <volt-label htmlFor="chat-composer">Message</volt-label>
+        <volt-textarea
+          id="chat-composer"
+          [rows]="3"
+          resize="vertical"
           [placeholder]="composerPlaceholder()"
           [value]="draft()"
           [disabled]="!canSend()"
           [attr.aria-describedby]="canSend() ? null : 'composer-disabled-reason'"
-          (input)="setDraft($event)"
+          (valueChange)="setDraftValue($event)"
           (keydown)="onComposerKeydown($event)"
-        ></textarea>
-      </label>
+        />
+      </volt-form-field>
 
       @if (!canSend()) {
-      <p id="composer-disabled-reason" class="composer-reason">{{ disabledReason() }}</p>
+      <p id="composer-disabled-reason" class="composer-reason">
+        {{ disabledReason() }}
+      </p>
       }
 
       <div class="actions">
         @if (isStreaming()) {
-        <volt-button type="button" variant="outline" size="md" (click)="cancel()">Stop</volt-button>
+        <volt-button
+          type="button"
+          variant="outline"
+          size="md"
+          (click)="cancel()"
+        >
+          <lmn-stop slot="leading" [size]="14" aria-hidden="true" />
+          Stop
+        </volt-button>
         } @else {
-        <volt-button type="submit" size="md" [disabled]="!canSend() || draft().trim().length === 0">
+        <volt-button
+          type="submit"
+          size="md"
+          [disabled]="!canSend() || draft().trim().length === 0"
+        >
+          <lmn-paper-airplane slot="leading" [size]="14" aria-hidden="true" />
           Send
         </volt-button>
         }
       </div>
     </form>
   </div>
+
+  <ng-template #deleteConversationDialog let-dialog>
+    <volt-card class="confirm-card">
+      <volt-card-header>
+        <volt-card-title id="delete-conversation-title"
+          >Delete conversation?</volt-card-title
+        >
+        <volt-card-description id="delete-conversation-description">
+          This removes the conversation from local history.
+        </volt-card-description>
+      </volt-card-header>
+      <volt-card-content>
+        <p>Loaded chats are not recoverable after deletion.</p>
+      </volt-card-content>
+      <volt-card-footer class="confirm-actions">
+        <volt-button
+          type="button"
+          variant="outline"
+          size="md"
+          (click)="clearPendingDelete(); dialog.close()"
+        >
+          Cancel
+        </volt-button>
+        <volt-button
+          type="button"
+          variant="destructive"
+          size="md"
+          (click)="dialog.close(); deletePendingConversation()"
+        >
+          Delete
+        </volt-button>
+      </volt-card-footer>
+    </volt-card>
+  </ng-template>
 </section>

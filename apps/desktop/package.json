@@ -36,11 +36,14 @@
     "@angular/cli": "22.1.5",
     "@angular/compiler-cli": "22.1.5",
     "@playwright/test": "1.63.0",
+    "@tailwindcss/postcss": "^4.3.3",
     "@tauri-apps/cli": "2.11.4",
     "@testing-library/angular": "19.4.2",
     "@testing-library/dom": "10.4.1",
     "@types/node": "22.20.1",
     "jsdom": "30.0.1",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
   }

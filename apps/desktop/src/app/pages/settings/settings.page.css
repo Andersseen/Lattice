@@ -46,22 +46,6 @@ h3 {
   color: var(--color-muted);
 }
 
-.pending-note {
-  display: inline-flex;
-  align-items: center;
-  min-height: 1.35rem;
-  margin-left: 0.5rem;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 999px;
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
-  font-size: 0.75rem;
-  font-weight: 800;
-  line-height: 1;
-  padding: 0 0.5rem;
-  vertical-align: middle;
-}
-
 .settings-cluster {
   display: grid;
   gap: 1rem;
@@ -86,59 +70,33 @@ h3 {
   padding: 1.25rem;
 }
 
+.appearance-group {
+  grid-template-columns: minmax(12rem, 1fr) auto;
+}
+
 .segmented {
+  justify-self: end;
+  width: min(100%, 20rem);
+  min-width: 17rem;
+}
+
+.segmented-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.25rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  background: var(--color-surface-strong);
-  padding: 0.25rem;
+  width: 100%;
 }
 
-.segmented button {
-  min-height: 2.5rem;
-  border: 0;
-  border-radius: 0.35rem;
-  color: var(--color-muted);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
+volt-tabs-trigger {
+  min-width: 0;
+}
+
+volt-tabs-trigger[data-state='active'] {
   font-weight: 700;
-}
-
-.segmented button:hover,
-.segmented button:focus-visible,
-.segmented button.active {
-  color: var(--color-text);
-  background: var(--color-surface);
 }
 
 .number-field {
   display: grid;
   gap: 0.4rem;
-}
-
-.number-field span {
-  color: var(--color-muted);
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
-input {
-  width: 100%;
-  min-width: 0;
-  min-height: 2.75rem;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 0.45rem;
-  color: var(--color-text);
-  background: var(--color-surface);
-  font: inherit;
-  padding: 0 0.75rem;
-}
-
-input[aria-invalid='true'] {
-  border-color: #b3261e;
 }
 
 .field-error {
@@ -169,17 +127,15 @@ input[aria-invalid='true'] {
   gap: 0.75rem;
 }
 
+.diagnostics,
+.credential-card,
+.confirm-card {
+  display: block;
+  border-radius: 0.5rem;
+}
+
 .diagnostics {
   padding: 1rem;
-}
-
-.diagnostics summary {
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.diagnostics[open] summary {
-  margin-bottom: 1rem;
 }
 
 .diagnostic-actions {
@@ -225,12 +181,6 @@ dd {
   min-width: 0;
 }
 
-.text-field span {
-  color: var(--color-muted);
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
 .credential-list {
   display: grid;
   gap: 0.75rem;
@@ -239,54 +189,45 @@ dd {
   list-style: none;
 }
 
-.credential-card {
+.credential-card-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   min-width: 0;
   padding: 0.85rem 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  background: var(--color-surface-strong);
 }
 
-.credential-card .summary {
+.credential-card-content .summary {
   display: grid;
   gap: 0.2rem;
   min-width: 0;
 }
 
-.credential-card .meta {
+.credential-card-content .meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
   color: var(--color-muted);
   font-size: 0.85rem;
   text-transform: capitalize;
 }
 
-.credential-card .actions {
+.credential-actions {
+  display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  border: 0;
-  background: transparent;
-  padding: 0;
   gap: 0.5rem;
 }
 
-.inline-confirm {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
+.confirm-card p {
   color: var(--color-muted);
-  font-size: 0.85rem;
 }
 
-.inline-confirm button {
-  min-height: 2rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.35rem;
-  color: var(--color-text);
-  background: var(--color-surface);
-  cursor: pointer;
-  font: inherit;
+.confirm-actions {
+  justify-content: flex-end;
+  gap: 0.75rem;
 }
 
 @media (max-width: 48rem) {
@@ -294,7 +235,7 @@ dd {
     grid-template-columns: 1fr;
   }
 
-  .credential-card {
+  .credential-card-content {
     flex-direction: column;
     align-items: stretch;
   }
@@ -321,5 +262,14 @@ dd {
 
   .actions div {
     display: grid;
+  }
+
+  .appearance-group {
+    grid-template-columns: 1fr;
+  }
+
+  .segmented {
+    justify-self: stretch;
+    width: 100%;
   }
 }

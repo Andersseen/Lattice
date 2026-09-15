@@ -14,28 +14,29 @@
   } @if (settings(); as currentSettings) {
   <section class="settings-cluster" aria-labelledby="general-settings-title">
     <h2 id="general-settings-title">General</h2>
-    <section class="setting-group" aria-labelledby="appearance-title">
+    <section class="setting-group appearance-group" aria-labelledby="appearance-title">
       <div>
         <h3 id="appearance-title">Appearance</h3>
         <p>
           Selected: {{ selectedAppearanceLabel() }} @if (appearanceHasPendingChange()) {
-          <span class="pending-note">Unsaved</span>
+          <volt-badge variant="secondary">Unsaved</volt-badge>
           }
         </p>
       </div>
 
-      <div class="segmented" role="group" aria-label="Appearance">
+      <volt-tabs
+        class="segmented"
+        [value]="draftAppearance()"
+        [activateOnFocus]="true"
+      >
+        <volt-tabs-list class="segmented-list" aria-label="Appearance">
         @for (option of appearanceOptions; track option.value) {
-        <button
-          type="button"
-          [class.active]="draftAppearance() === option.value"
-          [attr.aria-pressed]="draftAppearance() === option.value"
-          (click)="setAppearance(option.value)"
-        >
+        <volt-tabs-trigger [value]="option.value" (click)="setAppearance(option.value)">
           {{ option.label }}
-        </button>
+        </volt-tabs-trigger>
         }
-      </div>
+        </volt-tabs-list>
+      </volt-tabs>
     </section>
 
     <section class="setting-group" aria-labelledby="idle-unload-title">
@@ -44,19 +45,16 @@
         <p>Current: {{ currentSettings.idleUnloadMinutes }} min</p>
       </div>
 
-      <label class="number-field">
-        <span>Minutes</span>
-        <input
+      <volt-form-field class="number-field">
+        <volt-label htmlFor="idle-unload-minutes" [error]="!idleUnloadIsValid()">Minutes</volt-label>
+        <volt-input
+          id="idle-unload-minutes"
           type="number"
-          min="1"
-          max="120"
-          step="1"
-          inputmode="numeric"
-          [value]="draftIdleUnloadMinutes()"
+          [value]="draftIdleUnloadMinutes().toString()"
           [attr.aria-invalid]="!idleUnloadIsValid()"
-          (input)="setIdleUnloadMinutes($event)"
+          (valueChange)="setIdleUnloadMinutesValue($event)"
         />
-      </label>
+      </volt-form-field>
       @if (!idleUnloadIsValid()) {
       <p class="field-error" role="alert">Use a value from 1 to 120.</p>
       }
@@ -106,25 +104,28 @@
       }
 
       <form class="credential-form" (submit)="$event.preventDefault(); addCredential()">
-        <label class="text-field">
-          <span>Label</span>
-          <input
+        <volt-form-field class="text-field">
+          <volt-label htmlFor="credential-label">Label</volt-label>
+          <volt-input
+            id="credential-label"
             type="text"
             placeholder="Personal provider key"
             [value]="draftCredentialLabel()"
-            (input)="setCredentialLabel($event)"
+            (valueChange)="setCredentialLabelValue($event)"
           />
-        </label>
-        <label class="text-field">
-          <span>Credential key</span>
-          <input
+        </volt-form-field>
+        <volt-form-field class="text-field">
+          <volt-label htmlFor="credential-provider-key">Credential key</volt-label>
+          <volt-input
+            id="credential-provider-key"
             type="text"
             placeholder="provider-key"
             [value]="draftCredentialProviderKey()"
-            (input)="setCredentialProviderKey($event)"
+            (valueChange)="setCredentialProviderKeyValue($event)"
           />
-        </label>
+        </volt-form-field>
         <volt-button type="submit" size="md" [disabled]="!canAddCredential()">
+          <lmn-key slot="leading" [size]="14" aria-hidden="true" />
           {{ isSavingCredential() ? 'Saving' : 'Add' }}
         </volt-button>
       </form>
@@ -136,42 +137,48 @@
       } @else {
       <ul class="credential-list">
         @for (credential of credentials(); track credential.id) {
-        <li class="credential-card">
-          <div class="summary">
-            <strong>{{ credential.label }}</strong>
-            <span class="meta">
-              {{ credential.availability === 'available' ? 'Stored securely' :
-              credential.availability }} · {{ credential.providerKey }}
-            </span>
-          </div>
-          <div class="actions">
-            <volt-button
-              type="button"
-              variant="outline"
-              size="sm"
-              [disabled]="isSavingCredential()"
-              (click)="replaceCredential(credential.id)"
-            >
-              Replace
-            </volt-button>
-            @if (pendingCredentialDeleteId() === credential.id) {
-            <div class="inline-confirm" role="group" aria-label="Confirm credential removal">
-              <span>Remove?</span>
-              <button type="button" (click)="deleteCredential(credential.id, $event)">Yes</button>
-              <button type="button" (click)="cancelDeleteCredential($event)">No</button>
-            </div>
-            } @else {
-            <volt-button
-              type="button"
-              variant="outline"
-              size="sm"
-              [disabled]="deletingCredentialId() === credential.id"
-              (click)="requestDeleteCredential(credential.id, $event)"
-            >
-              {{ deletingCredentialId() === credential.id ? 'Removing' : 'Remove' }}
-            </volt-button>
-            }
-          </div>
+        <li>
+          <volt-card class="credential-card">
+            <volt-card-content class="credential-card-content">
+              <div class="summary">
+                <strong>{{ credential.label }}</strong>
+                <span class="meta">
+                  <volt-badge
+                    [variant]="credential.availability === 'available' ? 'secondary' : 'outline'"
+                  >
+                    {{ credential.availability === 'available' ? 'Stored securely' :
+                    credential.availability }}
+                  </volt-badge>
+                  {{ credential.providerKey }}
+                </span>
+              </div>
+              <div class="credential-actions">
+                <volt-button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  [disabled]="isSavingCredential()"
+                  (click)="replaceCredential(credential.id)"
+                >
+                  Replace
+                </volt-button>
+                @if (pendingCredentialDeleteId() === credential.id) {
+                <volt-badge variant="destructive">Pending removal</volt-badge>
+                } @else {
+                <volt-button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  [disabled]="deletingCredentialId() === credential.id"
+                  (click)="requestDeleteCredential(credential.id, $event)"
+                >
+                  <lmn-trash slot="leading" [size]="14" aria-hidden="true" />
+                  {{ deletingCredentialId() === credential.id ? 'Removing' : 'Remove' }}
+                </volt-button>
+                }
+              </div>
+            </volt-card-content>
+          </volt-card>
         </li>
         }
       </ul>
@@ -194,17 +201,20 @@
 
   <section class="settings-cluster" aria-labelledby="advanced-settings-title">
     <h2 id="advanced-settings-title">Advanced</h2>
-    <details class="diagnostics" open>
-      <summary>Diagnostics</summary>
-      <div class="diagnostic-actions">
-        <volt-button type="button" variant="outline" size="sm" (click)="refreshDiagnostics()">
-          Refresh diagnostics
-        </volt-button>
-      </div>
-      @if (appInfoError(); as infoError) {
-      <p role="alert">{{ infoError.message }}</p>
-      }
-      <dl>
+    <volt-accordion class="diagnostics" type="single" value="diagnostics" [collapsible]="true">
+      <volt-accordion-item value="diagnostics">
+        <volt-accordion-trigger>Diagnostics</volt-accordion-trigger>
+        <volt-accordion-content>
+          <div class="diagnostic-actions">
+            <volt-button type="button" variant="outline" size="sm" (click)="refreshDiagnostics()">
+              <lmn-arrow-path slot="leading" [size]="14" aria-hidden="true" />
+              Refresh diagnostics
+            </volt-button>
+          </div>
+          @if (appInfoError(); as infoError) {
+          <p role="alert">{{ infoError.message }}</p>
+          }
+          <dl>
         @if (appInfo(); as info) {
         <div>
           <dt>Application</dt>
@@ -250,7 +260,41 @@
           <dd>{{ slot.ownership.state }}</dd>
         </div>
         }
-      </dl>
-    </details>
+          </dl>
+        </volt-accordion-content>
+      </volt-accordion-item>
+    </volt-accordion>
   </section>
+
+  <ng-template #deleteCredentialDialog let-dialog>
+    <volt-card class="confirm-card">
+      <volt-card-header>
+        <volt-card-title id="delete-credential-title">Remove credential?</volt-card-title>
+        <volt-card-description id="delete-credential-description">
+          This removes the saved credential reference from Lattice.
+        </volt-card-description>
+      </volt-card-header>
+      <volt-card-content>
+        <p>The secret value is managed by the native secure store.</p>
+      </volt-card-content>
+      <volt-card-footer class="confirm-actions">
+        <volt-button
+          type="button"
+          variant="outline"
+          size="md"
+          (click)="clearPendingCredentialDelete(); dialog.close()"
+        >
+          Cancel
+        </volt-button>
+        <volt-button
+          type="button"
+          variant="destructive"
+          size="md"
+          (click)="dialog.close(); deletePendingCredential()"
+        >
+          Remove
+        </volt-button>
+      </volt-card-footer>
+    </volt-card>
+  </ng-template>
 </section>

@@ -1,3 +1,4 @@
+import type { TemplateRef } from '@angular/core';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -5,11 +6,36 @@ import {
   DestroyRef,
   effect,
   inject,
-  signal
+  signal,
+  ViewContainerRef,
+  viewChild
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { AppearancePreference } from '@lattice/types';
-import { VoltButton } from '@voltui/components';
+import {
+  VoltAccordion,
+  VoltAccordionContent,
+  VoltAccordionItem,
+  VoltAccordionTrigger,
+  VoltBadge,
+  VoltButton,
+  VoltCard,
+  VoltCardContent,
+  VoltCardDescription,
+  VoltCardFooter,
+  VoltCardHeader,
+  VoltCardTitle,
+  VoltFormField,
+  VoltInput,
+  VoltLabel,
+  VoltTabs,
+  VoltTabsList,
+  VoltTabsTrigger
+} from '@voltui/components';
+import { LmnArrowPathIcon } from 'lumen-icons/arrow-path';
+import { LmnKeyIcon } from 'lumen-icons/key';
+import { LmnTrashIcon } from 'lumen-icons/trash';
+import { DialogService } from 'quartz-headless';
 
 import { AppInfoStore } from '../../core/state/app-info.store';
 import { CredentialsStore } from '../../core/state/credentials.store';
@@ -28,18 +54,45 @@ const APPEARANCE_OPTIONS: ReadonlyArray<{
 
 @Component({
   selector: 'lat-settings-page',
-  imports: [RouterLink, VoltButton],
+  imports: [
+    RouterLink,
+    LmnArrowPathIcon,
+    LmnKeyIcon,
+    LmnTrashIcon,
+    VoltAccordion,
+    VoltAccordionContent,
+    VoltAccordionItem,
+    VoltAccordionTrigger,
+    VoltBadge,
+    VoltButton,
+    VoltCard,
+    VoltCardContent,
+    VoltCardDescription,
+    VoltCardFooter,
+    VoltCardHeader,
+    VoltCardTitle,
+    VoltFormField,
+    VoltInput,
+    VoltLabel,
+    VoltTabs,
+    VoltTabsList,
+    VoltTabsTrigger
+  ],
   templateUrl: './settings.page.html',
   styleUrl: './settings.page.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class SettingsPage {
+export default class SettingsPage {
   private readonly settingsStore = inject(SettingsStore);
   private readonly credentialsStore = inject(CredentialsStore);
   private readonly appInfoStore = inject(AppInfoStore);
   private readonly runtimeStore = inject(ModelRuntimeStore);
   private readonly slotStore = inject(ModelSlotStore);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly dialog = inject(DialogService);
+  private readonly viewContainerRef = inject(ViewContainerRef);
+  private readonly deleteCredentialDialog =
+    viewChild.required<TemplateRef<unknown>>('deleteCredentialDialog');
 
   protected readonly appearanceOptions = APPEARANCE_OPTIONS;
   protected readonly appInfo = this.appInfoStore.appInfo;
@@ -112,9 +165,8 @@ export class SettingsPage {
     this.draftAppearance.set(appearance);
   }
 
-  protected setIdleUnloadMinutes(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.draftIdleUnloadMinutes.set(Number(input.value));
+  protected setIdleUnloadMinutesValue(value: string): void {
+    this.draftIdleUnloadMinutes.set(Number(value));
   }
 
   protected save(): void {
@@ -141,9 +193,17 @@ export class SettingsPage {
     this.draftCredentialLabel.set(target.value);
   }
 
+  protected setCredentialLabelValue(value: string): void {
+    this.draftCredentialLabel.set(value);
+  }
+
   protected setCredentialProviderKey(event: Event): void {
     const target = event.target as HTMLInputElement;
     this.draftCredentialProviderKey.set(target.value);
+  }
+
+  protected setCredentialProviderKeyValue(value: string): void {
+    this.draftCredentialProviderKey.set(value);
   }
 
   protected addCredential(): void {
@@ -165,15 +225,23 @@ export class SettingsPage {
   protected requestDeleteCredential(id: string, event: Event): void {
     event.stopPropagation();
     this.pendingCredentialDeleteId.set(id);
+    this.dialog.open(this.deleteCredentialDialog(), this.viewContainerRef, {
+      ariaLabelledBy: 'delete-credential-title',
+      ariaDescribedBy: 'delete-credential-description',
+      panelClass: 'confirmation-dialog-panel',
+      backdropClass: 'confirmation-dialog-backdrop'
+    });
   }
 
-  protected cancelDeleteCredential(event: Event): void {
-    event.stopPropagation();
+  protected clearPendingCredentialDelete(): void {
     this.pendingCredentialDeleteId.set(null);
   }
 
-  protected deleteCredential(id: string, event: Event): void {
-    event.stopPropagation();
+  protected deletePendingCredential(): void {
+    const id = this.pendingCredentialDeleteId();
+    if (id === null) {
+      return;
+    }
     this.pendingCredentialDeleteId.set(null);
     void this.credentialsStore.delete(id);
   }
