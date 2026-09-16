@@ -67,7 +67,11 @@ describe('conversations browser fallback', () => {
 
   it('checkpoints then finalizes a streaming assistant message', () => {
     const id = beginOrContinueWebConversation(null, [userMessage('hi')]);
-    const messageId = startWebAssistantMessage(id, 'qwen/qwen2.5-0.5b-instruct');
+    const messageId = startWebAssistantMessage(
+      id,
+      'local-openai-compatible',
+      'qwen/qwen2.5-0.5b-instruct'
+    );
 
     expect(getWebConversation({ conversationId: id }).messages[1]).toEqual(
       expect.objectContaining({ status: 'streaming', text: '' })

@@ -32,6 +32,7 @@ pub(super) fn migrate(conn: &mut Connection, db_path: Option<&Path>) -> Result<(
         read_model_load_state(conn)?;
         super::conversations::read_conversations_sanity(conn)?;
         super::credentials::read_credentials_sanity(conn)?;
+        super::provider_profiles::read_provider_profiles_sanity(conn)?;
         return Ok(());
     }
 
@@ -48,6 +49,7 @@ pub(super) fn migrate(conn: &mut Connection, db_path: Option<&Path>) -> Result<(
             create_v4_schema(&tx)?;
             create_v5_schema(&tx)?;
             create_v6_schema(&tx)?;
+            create_v7_schema(&tx)?;
             write_model_runtime_status(&tx, &ModelRuntimeStatus::default())?;
         }
         1 => {
@@ -56,6 +58,7 @@ pub(super) fn migrate(conn: &mut Connection, db_path: Option<&Path>) -> Result<(
             create_v4_schema(&tx)?;
             create_v5_schema(&tx)?;
             create_v6_schema(&tx)?;
+            create_v7_schema(&tx)?;
             write_model_runtime_status(&tx, &ModelRuntimeStatus::default())?;
         }
         2 => {
@@ -63,17 +66,24 @@ pub(super) fn migrate(conn: &mut Connection, db_path: Option<&Path>) -> Result<(
             create_v4_schema(&tx)?;
             create_v5_schema(&tx)?;
             create_v6_schema(&tx)?;
+            create_v7_schema(&tx)?;
         }
         3 => {
             create_v4_schema(&tx)?;
             create_v5_schema(&tx)?;
             create_v6_schema(&tx)?;
+            create_v7_schema(&tx)?;
         }
         4 => {
             create_v5_schema(&tx)?;
             create_v6_schema(&tx)?;
+            create_v7_schema(&tx)?;
         }
-        5 => create_v6_schema(&tx)?,
+        5 => {
+            create_v6_schema(&tx)?;
+            create_v7_schema(&tx)?;
+        }
+        6 => create_v7_schema(&tx)?,
         _ => {
             return Err(AppError::unsupported_schema(
                 "Local settings schema is not supported by this Lattice version.",
@@ -226,6 +236,34 @@ fn create_v6_schema(tx: &Transaction<'_>) -> Result<(), AppError> {
             updated_at_unix_seconds INTEGER NOT NULL
         );
         CREATE INDEX idx_credentials_updated ON credentials(updated_at_unix_seconds DESC, id DESC);",
+    )
+    .map_err(|_| AppError::migration_failed("Lattice could not migrate local settings."))?;
+
+    Ok(())
+}
+
+/// Adds the 0.11 remote provider profiles domain. No secret column exists:
+/// `credential_id` is a real foreign key to the 0.10 `credentials` table
+/// (so binding an unknown credential fails, and deleting a credential
+/// unbinds it everywhere through `ON DELETE SET NULL`, enforced because
+/// every connection enables `PRAGMA foreign_keys`), and `consent_endpoint`
+/// records the exact destination consent was given for (see
+/// `storage::provider_profiles`).
+fn create_v7_schema(tx: &Transaction<'_>) -> Result<(), AppError> {
+    tx.execute_batch(
+        "CREATE TABLE provider_profiles (
+            id TEXT PRIMARY KEY,
+            revision INTEGER NOT NULL CHECK (revision >= 1),
+            label TEXT NOT NULL,
+            endpoint TEXT NOT NULL,
+            model_key TEXT NOT NULL,
+            credential_id TEXT REFERENCES credentials(id) ON DELETE SET NULL,
+            consent_endpoint TEXT,
+            consent_granted_at_unix_seconds INTEGER,
+            created_at_unix_seconds INTEGER NOT NULL,
+            updated_at_unix_seconds INTEGER NOT NULL
+        );
+        CREATE INDEX idx_provider_profiles_label ON provider_profiles(label COLLATE NOCASE, id);",
     )
     .map_err(|_| AppError::migration_failed("Lattice could not migrate local settings."))?;
 

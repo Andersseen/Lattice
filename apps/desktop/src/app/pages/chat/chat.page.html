@@ -75,18 +75,37 @@
   <div class="chat-main">
     <header class="chat-header">
       <div>
-        <p class="eyebrow">Local AI</p>
+        <p class="eyebrow">{{ isRemoteTarget() ? 'Remote provider' : 'Local AI' }}</p>
         <h1 id="chat-title">Chat</h1>
       </div>
-      <volt-badge
-        class="model-pill"
-        [class.ready]="loadedModelKey() !== null"
-        [variant]="loadedModelKey() === null ? 'outline' : 'secondary'"
-        aria-live="polite"
-      >
-        <span aria-hidden="true"></span>
-        {{ loadedModelKey() ?? 'No model loaded' }}
-      </volt-badge>
+      <div class="target-controls">
+        <select
+          voltNativeSelect
+          class="provider-select"
+          aria-label="Provider"
+          [disabled]="isStreaming()"
+          (change)="onTargetChange($event)"
+        >
+          <option value="local" [selected]="targetValue() === 'local'">Local model</option>
+          @for (profile of providerProfiles(); track profile.id) {
+          <option
+            [value]="'remote:' + profile.id"
+            [selected]="targetValue() === 'remote:' + profile.id"
+          >
+            {{ profile.label }}
+          </option>
+          }
+        </select>
+        <volt-badge
+          class="model-pill"
+          [class.ready]="activeModelKey() !== null"
+          [variant]="activeModelKey() === null ? 'outline' : 'secondary'"
+          aria-live="polite"
+        >
+          <span aria-hidden="true"></span>
+          {{ activeModelKey() ?? (isRemoteTarget() ? 'No provider selected' : 'No model loaded') }}
+        </volt-badge>
+      </div>
     </header>
 
     @if (isLoadingConversation()) {
@@ -131,7 +150,11 @@
       } @else if (transcript().length === 0) {
       <div class="empty-state">
         <h2>Ready when you are.</h2>
+        @if (selectedProfile(); as profile) {
+        <p>Messages you send go to {{ profile.endpoint }} after you approve it.</p>
+        } @else {
         <p>Start a local conversation with the loaded model.</p>
+        }
       </div>
       } @for (entry of transcript(); track $index) {
       <article
@@ -140,9 +163,12 @@
         move="fade-up"
         [moveDuration]="140"
       >
-        <span class="role"
-          >{{ entry.role === 'assistant' ? 'Lattice' : 'You' }}</span
-        >
+        <span class="role">
+          {{ entry.role === 'assistant' ? 'Lattice' : 'You' }}
+          @if (provenanceLabel(entry); as provenance) {
+          <span class="provenance">· {{ provenance }}</span>
+          }
+        </span>
         <p class="text">
           {{ entry.text }}@if (entry.status === 'streaming') {<span
             class="cursor"
@@ -208,6 +234,56 @@
       </div>
     </form>
   </div>
+
+  <ng-template #consentDialog let-dialog>
+    @if (pendingConsent(); as pending) {
+    <volt-card class="confirm-card">
+      <volt-card-header>
+        <volt-card-title id="consent-title"
+          >Send this conversation to {{ pending.profile.label }}?</volt-card-title
+        >
+        <volt-card-description id="consent-description">
+          Lattice will send the visible conversation, including earlier local replies, to this
+          endpoint. The approval is remembered for this endpoint until you revoke it in Settings
+          or change the endpoint.
+        </volt-card-description>
+      </volt-card-header>
+      <volt-card-content>
+        <dl class="consent-details">
+          <div>
+            <dt>Endpoint</dt>
+            <dd>{{ pending.profile.endpoint }}</dd>
+          </div>
+          <div>
+            <dt>Model</dt>
+            <dd>{{ pending.profile.modelKey }}</dd>
+          </div>
+          <div>
+            <dt>Credential</dt>
+            <dd>{{ pendingConsentCredentialLabel() }}</dd>
+          </div>
+          <div>
+            <dt>Messages sent</dt>
+            <dd>{{ transcript().length + 1 }}</dd>
+          </div>
+        </dl>
+      </volt-card-content>
+      <volt-card-footer class="confirm-actions">
+        <volt-button
+          type="button"
+          variant="outline"
+          size="md"
+          (click)="dismissConsent(); dialog.close()"
+        >
+          Cancel
+        </volt-button>
+        <volt-button type="button" size="md" (click)="approveConsent(); dialog.close()">
+          Allow and send
+        </volt-button>
+      </volt-card-footer>
+    </volt-card>
+    }
+  </ng-template>
 
   <ng-template #deleteConversationDialog let-dialog>
     <volt-card class="confirm-card">

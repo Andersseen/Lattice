@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. Amended by ADR 0014 (0.11): `ureq` now enables its `rustls` feature for remote HTTPS, and `providers/local_openai.rs` became `providers/openai_compatible.rs`, serving local and remote destinations.
 
 ## Context
 

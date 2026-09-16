@@ -1,4 +1,8 @@
-use super::local_openai::{stream_completion, AdapterEvent};
+use super::openai_compatible::{
+    stream_completion, AdapterEvent, BearerToken, Destination, OpenAiCompatibleTarget,
+};
+use super::profiles::REMOTE_PROVIDER_KEY;
+use crate::conversations::LOCAL_PROVIDER_KEY;
 use crate::error::AppError;
 use crate::model_runtime::{ModelLoadOwnership, ModelSlotStatus};
 use serde::{Deserialize, Serialize};
@@ -66,17 +70,32 @@ pub struct ChatRequest {
     pub messages: Vec<ChatMessage>,
 }
 
+/// Which destination one chat request is sent to (0.11). Applies to that
+/// request only; nothing about a selection is persisted or dispatched on
+/// its own.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ChatTarget {
+    Local,
+    Remote { profile_id: String },
+}
+
 /// Amended by 0.9 (`conversation-persistence`): the Tauri command's actual
 /// request wraps the unchanged `ChatRequest` above with conversation
-/// identity. `ChatRequest`/`ChatStreamEvent` themselves, and everything
-/// below this struct, are untouched by that change — see
-/// `openspec/changes/conversation-persistence/design.md`'s "Amendment to
-/// 0.8" for why persistence wraps this port instead of changing it.
+/// identity. Amended again by 0.11 (`remote-openai-compatible-chat`) with
+/// the per-request `target`. `ChatRequest`/`ChatStreamEvent` themselves are
+/// untouched by both — see those changes' design.md files for why this
+/// wrapper, not the port, carries command-level context.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StartChatStreamRequest {
     pub conversation_id: Option<String>,
     pub chat: ChatRequest,
+    pub target: ChatTarget,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -137,13 +156,41 @@ pub enum ChatStreamEvent {
     },
 }
 
-/// Refuses a chat request before any network call when the prompt is
-/// oversized or the requested model is not the one currently owned and
-/// loaded in the managed slot. Never triggers an implicit load.
-pub fn authorize_chat_request(
-    status: &ModelSlotStatus,
-    request: &ChatRequest,
-) -> Result<(), AppError> {
+/// A resolved, authorized destination for one run: the local runtime
+/// endpoint (`CompletionTarget::local`) or a remote profile prepared by
+/// `profiles::prepare_remote_target`. Opaque to the desktop shell, which
+/// only needs the provenance key and whether the run holds the local model
+/// lease; any bearer token inside stays redacted in `Debug`.
+#[derive(Debug)]
+pub struct CompletionTarget(OpenAiCompatibleTarget);
+
+impl CompletionTarget {
+    pub fn local(endpoint: &str) -> Self {
+        Self(OpenAiCompatibleTarget::local(endpoint))
+    }
+
+    pub(crate) fn remote(endpoint: &str, bearer: Option<BearerToken>) -> Self {
+        Self(OpenAiCompatibleTarget::remote(endpoint, bearer))
+    }
+
+    /// The provider key recorded on the assistant message this run produces.
+    pub fn provider_key(&self) -> &'static str {
+        match self.0.destination() {
+            Destination::Local => LOCAL_PROVIDER_KEY,
+            Destination::Remote => REMOTE_PROVIDER_KEY,
+        }
+    }
+
+    /// Only local runs lease the managed model; a remote run never blocks
+    /// unloading it.
+    pub fn holds_local_model_lease(&self) -> bool {
+        self.0.destination() == Destination::Local
+    }
+}
+
+/// Shared by the local and remote authorization paths: refuses a prompt
+/// over `MAX_PROMPT_CHARS` before any network call.
+pub(crate) fn check_prompt_bound(request: &ChatRequest) -> Result<(), AppError> {
     let prompt_chars: usize = request
         .messages
         .iter()
@@ -154,6 +201,17 @@ pub fn authorize_chat_request(
             "The conversation is too long for this model.",
         ));
     }
+    Ok(())
+}
+
+/// Refuses a local chat request before any network call when the prompt is
+/// oversized or the requested model is not the one currently owned and
+/// loaded in the managed slot. Never triggers an implicit load.
+pub fn authorize_chat_request(
+    status: &ModelSlotStatus,
+    request: &ChatRequest,
+) -> Result<(), AppError> {
+    check_prompt_bound(request)?;
 
     match &status.ownership {
         ModelLoadOwnership::Owned { model_key, .. } if model_key == &request.model_key => Ok(()),
@@ -170,15 +228,18 @@ pub fn authorize_chat_request(
 /// own thread.
 ///
 /// Internally spawns a second, unjoined "reader" thread that performs the
-/// actual blocking HTTP call (`local_openai::stream_completion`), because
+/// actual blocking HTTP call (`openai_compatible::stream_completion`), because
 /// `ureq`'s only body timeout is a total budget, not an idle/per-read one:
 /// polling here with `ORCHESTRATOR_POLL_INTERVAL` is what makes
 /// cancellation responsive even while the reader thread is blocked waiting
 /// for the model's first token. A cancelled reader thread is abandoned,
 /// not forcibly aborted; it is bounded by `STREAM_DEADLINE` at worst and
-/// its output is never forwarded once this function has returned.
+/// its output is never forwarded once this function has returned. Since
+/// 0.11 the reader also observes `cancel` itself, so it sends no request
+/// when cancelled before dispatch and closes the connection at the next
+/// received chunk otherwise (best-effort remote cancellation).
 pub fn run_chat_stream(
-    endpoint: &str,
+    target: CompletionTarget,
     run_id: String,
     request: ChatRequest,
     cancel: &Arc<AtomicBool>,
@@ -190,13 +251,14 @@ pub fn run_chat_stream(
     });
 
     let (sender, receiver) = mpsc::channel::<AdapterEvent>();
-    let endpoint = endpoint.to_string();
+    let reader_cancel = cancel.clone();
     thread::spawn(move || {
         stream_completion(
-            &endpoint,
+            &target.0,
             &request,
             MAX_OUTPUT_TOKENS,
             STREAM_DEADLINE,
+            &reader_cancel,
             &sender,
         );
     });
@@ -208,7 +270,18 @@ pub fn run_chat_stream(
             return;
         }
 
-        match receiver.recv_timeout(ORCHESTRATOR_POLL_INTERVAL) {
+        let received = receiver.recv_timeout(ORCHESTRATOR_POLL_INTERVAL);
+        // A reader that observed cancellation exits without sending, which
+        // can surface here as `Disconnected` (or, racing, one last event);
+        // cancellation observed at any point wins over what was received.
+        if !matches!(received, Err(mpsc::RecvTimeoutError::Timeout))
+            && cancel.load(Ordering::SeqCst)
+        {
+            on_event(ChatStreamEvent::Cancelled { run_id, sequence });
+            return;
+        }
+
+        match received {
             Ok(AdapterEvent::Delta(text)) => {
                 on_event(ChatStreamEvent::Delta {
                     run_id: run_id.clone(),
@@ -238,9 +311,7 @@ pub fn run_chat_stream(
                 on_event(ChatStreamEvent::Failed {
                     run_id,
                     sequence,
-                    error: AppError::chat_failed(
-                        "The local model runtime stopped responding unexpectedly.",
-                    ),
+                    error: AppError::chat_failed("The chat response stopped unexpectedly."),
                 });
                 return;
             }
@@ -375,7 +446,7 @@ mod tests {
         let cancel = Arc::new(AtomicBool::new(true));
         let mut events = Vec::new();
         run_chat_stream(
-            "http://127.0.0.1:0",
+            CompletionTarget::local("http://127.0.0.1:0"),
             "run-1".to_string(),
             request("qwen-small", "hi"),
             &cancel,
@@ -395,7 +466,7 @@ mod tests {
         let cancel = Arc::new(AtomicBool::new(false));
         let mut events = Vec::new();
         run_chat_stream(
-            "http://127.0.0.1:1",
+            CompletionTarget::local("http://127.0.0.1:1"),
             "run-2".to_string(),
             request("qwen-small", "hi"),
             &cancel,
@@ -444,7 +515,7 @@ mod tests {
         let cancel_setter = cancel.clone();
         let mut events = Vec::new();
         run_chat_stream(
-            &format!("http://127.0.0.1:{port}"),
+            CompletionTarget::local(&format!("http://127.0.0.1:{port}")),
             "run-3".to_string(),
             request("qwen-small", "hi"),
             &cancel,
@@ -461,6 +532,124 @@ mod tests {
         else {
             return Err(format!("unexpected event sequence: {}", events.len()).into());
         };
+        Ok(())
+    }
+
+    #[test]
+    fn chat_target_deserializes_from_a_kind_tagged_camel_case_union() -> Result<(), Box<dyn Error>>
+    {
+        let request: StartChatStreamRequest = serde_json::from_value(serde_json::json!({
+            "conversationId": null,
+            "chat": { "modelKey": "gpt-test", "messages": [] },
+            "target": { "kind": "remote", "profileId": "profile-1" }
+        }))?;
+        assert_eq!(
+            request.target,
+            ChatTarget::Remote {
+                profile_id: "profile-1".to_string()
+            }
+        );
+
+        let local: ChatTarget = serde_json::from_value(serde_json::json!({ "kind": "local" }))?;
+        assert_eq!(local, ChatTarget::Local);
+
+        let missing_target = serde_json::from_value::<StartChatStreamRequest>(serde_json::json!({
+            "conversationId": null,
+            "chat": { "modelKey": "m", "messages": [] }
+        }));
+        assert!(
+            missing_target.is_err(),
+            "the target is required, never implied"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn completion_targets_report_provenance_and_lease_scope() {
+        let local = CompletionTarget::local("http://127.0.0.1:1234");
+        assert_eq!(local.provider_key(), LOCAL_PROVIDER_KEY);
+        assert!(local.holds_local_model_lease());
+
+        let remote = CompletionTarget::remote("https://api.example.com/v1", None);
+        assert_eq!(remote.provider_key(), REMOTE_PROVIDER_KEY);
+        assert!(!remote.holds_local_model_lease());
+    }
+
+    /// Two protocol fixtures — the local destination and the remote one —
+    /// receive the same canonical history and produce the same canonical
+    /// events, differing only in run identity: the substitution 0.8's port
+    /// was designed for, proven rather than asserted.
+    #[test]
+    fn the_same_canonical_history_streams_identically_through_both_destinations(
+    ) -> Result<(), Box<dyn Error>> {
+        use super::super::openai_compatible::test_support::{spawn_capturing_fixture, write_sse};
+
+        let stream = |stream: &mut std::net::TcpStream| {
+            write_sse(
+                stream,
+                &[
+                    "data: {\"choices\":[{\"delta\":{\"content\":\"Same\"}}]}",
+                    "data: {\"choices\":[{\"delta\":{\"content\":\" answer\"},\"finish_reason\":\"length\"}]}",
+                ],
+            );
+        };
+        let (local_endpoint, local_captured) = spawn_capturing_fixture(stream)?;
+        let (remote_endpoint, remote_captured) = spawn_capturing_fixture(stream)?;
+
+        let history = ChatRequest {
+            model_key: "shared-model".to_string(),
+            messages: vec![
+                ChatMessage {
+                    role: ChatRole::User,
+                    text: "local question".to_string(),
+                },
+                ChatMessage {
+                    role: ChatRole::Assistant,
+                    text: "local answer".to_string(),
+                },
+                ChatMessage {
+                    role: ChatRole::User,
+                    text: "now remote".to_string(),
+                },
+            ],
+        };
+
+        let mut outcomes = Vec::new();
+        for (target, run_id) in [
+            (CompletionTarget::local(&local_endpoint), "local-run"),
+            (
+                CompletionTarget::remote(&format!("{remote_endpoint}/v1"), None),
+                "remote-run",
+            ),
+        ] {
+            let mut events = Vec::new();
+            run_chat_stream(
+                target,
+                run_id.to_string(),
+                history.clone(),
+                &Arc::new(AtomicBool::new(false)),
+                |event| events.push(serde_json::to_value(event).unwrap_or_default()),
+            );
+            for event in &mut events {
+                if let Some(object) = event.as_object_mut() {
+                    object.remove("runId");
+                }
+            }
+            outcomes.push(events);
+        }
+
+        assert_eq!(outcomes[0], outcomes[1]);
+        assert_eq!(outcomes[0].len(), 4);
+        assert_eq!(outcomes[0][3]["finishReason"], "maxOutputTokens");
+
+        let local_body = local_captured
+            .recv_timeout(Duration::from_secs(5))?
+            .json_body()?;
+        let remote_body = remote_captured
+            .recv_timeout(Duration::from_secs(5))?
+            .json_body()?;
+        assert_eq!(local_body["messages"], remote_body["messages"]);
+        assert_eq!(local_body["model"], remote_body["model"]);
         Ok(())
     }
 }

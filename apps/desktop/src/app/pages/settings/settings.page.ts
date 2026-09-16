@@ -11,7 +11,7 @@ import {
   viewChild
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import type { AppearancePreference } from '@lattice/types';
+import type { AppearancePreference, ProviderProfile } from '@lattice/types';
 import {
   VoltAccordion,
   VoltAccordionContent,
@@ -28,6 +28,7 @@ import {
   VoltFormField,
   VoltInput,
   VoltLabel,
+  VoltNativeSelect,
   VoltTabs,
   VoltTabsList,
   VoltTabsTrigger
@@ -41,6 +42,7 @@ import { AppInfoStore } from '../../core/state/app-info.store';
 import { CredentialsStore } from '../../core/state/credentials.store';
 import { ModelRuntimeStore } from '../../core/state/model-runtime.store';
 import { ModelSlotStore } from '../../core/state/model-slot.store';
+import { ProviderProfilesStore } from '../../core/state/provider-profiles.store';
 import { SettingsStore } from '../../core/state/settings.store';
 
 const APPEARANCE_OPTIONS: ReadonlyArray<{
@@ -74,6 +76,7 @@ const APPEARANCE_OPTIONS: ReadonlyArray<{
     VoltFormField,
     VoltInput,
     VoltLabel,
+    VoltNativeSelect,
     VoltTabs,
     VoltTabsList,
     VoltTabsTrigger
@@ -85,6 +88,7 @@ const APPEARANCE_OPTIONS: ReadonlyArray<{
 export default class SettingsPage {
   private readonly settingsStore = inject(SettingsStore);
   private readonly credentialsStore = inject(CredentialsStore);
+  private readonly providerProfilesStore = inject(ProviderProfilesStore);
   private readonly appInfoStore = inject(AppInfoStore);
   private readonly runtimeStore = inject(ModelRuntimeStore);
   private readonly slotStore = inject(ModelSlotStore);
@@ -93,6 +97,8 @@ export default class SettingsPage {
   private readonly viewContainerRef = inject(ViewContainerRef);
   private readonly deleteCredentialDialog =
     viewChild.required<TemplateRef<unknown>>('deleteCredentialDialog');
+  private readonly deleteProviderDialog =
+    viewChild.required<TemplateRef<unknown>>('deleteProviderDialog');
 
   protected readonly appearanceOptions = APPEARANCE_OPTIONS;
   protected readonly appInfo = this.appInfoStore.appInfo;
@@ -113,6 +119,26 @@ export default class SettingsPage {
       this.draftCredentialProviderKey().trim().length > 0 &&
       !this.isSavingCredential()
   );
+  protected readonly providerProfiles = this.providerProfilesStore.profiles;
+  protected readonly providersError = this.providerProfilesStore.error;
+  protected readonly isLoadingProviders = this.providerProfilesStore.isLoading;
+  protected readonly busyProviderId = this.providerProfilesStore.busyId;
+  protected readonly draftProviderLabel = signal('');
+  protected readonly draftProviderEndpoint = signal('');
+  protected readonly draftProviderModel = signal('');
+  protected readonly draftProviderCredentialId = signal('');
+  protected readonly canAddProvider = computed(
+    () =>
+      this.draftProviderLabel().trim().length > 0 &&
+      this.draftProviderEndpoint().trim().length > 0 &&
+      this.draftProviderModel().trim().length > 0 &&
+      this.busyProviderId() === null
+  );
+  protected readonly editingProviderId = signal<string | null>(null);
+  protected readonly editProviderLabel = signal('');
+  protected readonly editProviderEndpoint = signal('');
+  protected readonly editProviderModel = signal('');
+  protected readonly pendingProviderDeleteId = signal<string | null>(null);
   protected readonly settings = this.settingsStore.settings;
   protected readonly error = this.settingsStore.error;
   protected readonly isLoading = this.settingsStore.isLoading;
@@ -248,6 +274,99 @@ export default class SettingsPage {
 
   protected retryCredentials(): void {
     void this.credentialsStore.load();
+  }
+
+  protected setDraftProviderCredential(event: Event): void {
+    this.draftProviderCredentialId.set((event.target as HTMLSelectElement).value);
+  }
+
+  protected async addProvider(): Promise<void> {
+    if (!this.canAddProvider()) {
+      return;
+    }
+
+    const created = await this.providerProfilesStore.create(
+      {
+        label: this.draftProviderLabel(),
+        endpoint: this.draftProviderEndpoint(),
+        modelKey: this.draftProviderModel()
+      },
+      this.draftProviderCredentialId() === '' ? null : this.draftProviderCredentialId()
+    );
+    if (created) {
+      this.draftProviderLabel.set('');
+      this.draftProviderEndpoint.set('');
+      this.draftProviderModel.set('');
+      this.draftProviderCredentialId.set('');
+    }
+  }
+
+  protected startEditProvider(profile: ProviderProfile): void {
+    this.editingProviderId.set(profile.id);
+    this.editProviderLabel.set(profile.label);
+    this.editProviderEndpoint.set(profile.endpoint);
+    this.editProviderModel.set(profile.modelKey);
+  }
+
+  protected cancelEditProvider(): void {
+    this.editingProviderId.set(null);
+  }
+
+  /**
+   * A hint only: Rust normalizes the endpoint and decides whether it changed.
+   * Shown so the user knows saving will remove the binding and approval.
+   */
+  protected editChangesEndpoint(profile: ProviderProfile): boolean {
+    const edited = this.editProviderEndpoint().trim().replace(/\/+$/, '').toLowerCase();
+    return edited !== profile.endpoint.toLowerCase();
+  }
+
+  protected async saveProviderEdit(profile: ProviderProfile): Promise<void> {
+    const saved = await this.providerProfilesStore.update(profile, {
+      label: this.editProviderLabel(),
+      endpoint: this.editProviderEndpoint(),
+      modelKey: this.editProviderModel()
+    });
+    if (saved) {
+      this.editingProviderId.set(null);
+    }
+  }
+
+  protected bindProviderCredential(profile: ProviderProfile, event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    void this.providerProfilesStore.bindCredential(profile, value === '' ? null : value);
+  }
+
+  protected revokeProviderConsent(profile: ProviderProfile): void {
+    void this.providerProfilesStore.revokeConsent(profile);
+  }
+
+  protected requestDeleteProvider(id: string, event: Event): void {
+    event.stopPropagation();
+    this.pendingProviderDeleteId.set(id);
+    this.dialog.open(this.deleteProviderDialog(), this.viewContainerRef, {
+      ariaLabelledBy: 'delete-provider-title',
+      ariaDescribedBy: 'delete-provider-description',
+      panelClass: 'confirmation-dialog-panel',
+      backdropClass: 'confirmation-dialog-backdrop'
+    });
+  }
+
+  protected clearPendingProviderDelete(): void {
+    this.pendingProviderDeleteId.set(null);
+  }
+
+  protected deletePendingProvider(): void {
+    const id = this.pendingProviderDeleteId();
+    if (id === null) {
+      return;
+    }
+    this.pendingProviderDeleteId.set(null);
+    void this.providerProfilesStore.delete(id);
+  }
+
+  protected retryProviders(): void {
+    void this.providerProfilesStore.load();
   }
 
   protected refreshDiagnostics(): void {

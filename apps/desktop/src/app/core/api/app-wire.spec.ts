@@ -7,10 +7,13 @@ import {
   decodeChatStreamEvent,
   decodeModelRuntimeStatus,
   decodeModelSlotStatus,
+  decodeProviderProfile,
+  decodeProviderProfiles,
   normalizeAppError,
   normalizeChatError,
   normalizeModelRuntimeError,
   normalizeModelSlotError,
+  normalizeProviderError,
   normalizeSettingsError
 } from './app-wire';
 
@@ -312,6 +315,59 @@ describe('app wire boundary', () => {
     ]
   ])('decodes a %s chat stream event from an untrusted channel payload', (_kind, payload) => {
     expect(decodeChatStreamEvent(payload)).toEqual(payload);
+  });
+
+  it('decodes remote provider profiles from untrusted IPC payloads', () => {
+    const profile = {
+      id: 'profile-1',
+      revision: 2,
+      label: 'Example',
+      endpoint: 'https://api.example.com/v1',
+      modelKey: 'gpt-test',
+      credentialId: 'credential-1',
+      consent: { endpoint: 'https://api.example.com/v1', grantedAtUnixSeconds: 5 },
+      createdAtUnixSeconds: 1,
+      updatedAtUnixSeconds: 5
+    };
+
+    expect(decodeProviderProfile(profile)).toEqual(profile);
+    const { credentialId: _credentialId, consent: _consent, ...unbound } = profile;
+    expect(decodeProviderProfiles([unbound])).toEqual([unbound]);
+  });
+
+  it('rejects malformed provider profiles as one safe bridge error', () => {
+    const valid = {
+      id: 'profile-1',
+      revision: 1,
+      label: 'Example',
+      endpoint: 'https://api.example.com/v1',
+      modelKey: 'gpt-test',
+      createdAtUnixSeconds: 1,
+      updatedAtUnixSeconds: 1
+    };
+    const expected = expect.objectContaining({
+      code: 'bridge.unknown',
+      message: 'Lattice could not read this remote provider.'
+    });
+
+    for (const malformed of [
+      { ...valid, endpoint: 'http://api.example.com/v1' },
+      { ...valid, revision: 0 },
+      { ...valid, consent: { endpoint: 'https://api.example.com/v1' } },
+      { ...valid, credentialId: 7 },
+      null
+    ]) {
+      expect(() => decodeProviderProfile(malformed)).toThrow(expected);
+    }
+    expect(() => decodeProviderProfiles({ profiles: [valid] })).toThrow(expected);
+  });
+
+  it('normalizes unknown provider errors with the provider fallback message', () => {
+    expect(normalizeProviderError(new Error('raw internal'))).toEqual({
+      code: 'bridge.unknown',
+      message: 'Lattice could not read this remote provider.',
+      recoverable: true
+    });
   });
 
   it('decodes a malformed chat stream event to null instead of throwing', () => {

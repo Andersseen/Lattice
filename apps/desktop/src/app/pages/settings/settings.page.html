@@ -184,6 +184,223 @@
       </ul>
       }
     </section>
+
+    <section class="setting-group providers-group" aria-labelledby="remote-providers-title">
+      <div>
+        <h3 id="remote-providers-title">Remote providers</h3>
+        <p>
+          OpenAI-compatible HTTPS endpoints. Nothing is sent until you choose a provider in Chat
+          and approve its endpoint.
+        </p>
+      </div>
+
+      @if (providersError(); as providerError) {
+      <div class="notice" role="alert">
+        <p>{{ providerError.message }}</p>
+        <volt-button type="button" variant="outline" size="sm" (click)="retryProviders()"
+          >Retry</volt-button
+        >
+      </div>
+      }
+
+      <form class="provider-form" (submit)="$event.preventDefault(); addProvider()">
+        <volt-form-field class="text-field">
+          <volt-label htmlFor="provider-label">Provider name</volt-label>
+          <volt-input
+            id="provider-label"
+            type="text"
+            placeholder="OpenAI"
+            [value]="draftProviderLabel()"
+            (valueChange)="draftProviderLabel.set($event)"
+          />
+        </volt-form-field>
+        <volt-form-field class="text-field">
+          <volt-label htmlFor="provider-endpoint">Endpoint</volt-label>
+          <volt-input
+            id="provider-endpoint"
+            type="url"
+            placeholder="https://api.openai.com/v1"
+            [value]="draftProviderEndpoint()"
+            (valueChange)="draftProviderEndpoint.set($event)"
+          />
+        </volt-form-field>
+        <volt-form-field class="text-field">
+          <volt-label htmlFor="provider-model">Model name</volt-label>
+          <volt-input
+            id="provider-model"
+            type="text"
+            placeholder="gpt-4o-mini"
+            [value]="draftProviderModel()"
+            (valueChange)="draftProviderModel.set($event)"
+          />
+        </volt-form-field>
+        <volt-form-field class="text-field">
+          <volt-label htmlFor="provider-credential">Credential</volt-label>
+          <select
+            voltNativeSelect
+            id="provider-credential"
+            (change)="setDraftProviderCredential($event)"
+          >
+            <option value="" [selected]="draftProviderCredentialId() === ''">No credential</option>
+            @for (credential of credentials(); track credential.id) {
+            <option
+              [value]="credential.id"
+              [selected]="draftProviderCredentialId() === credential.id"
+            >
+              {{ credential.label }}
+            </option>
+            }
+          </select>
+        </volt-form-field>
+        <volt-button type="submit" size="md" [disabled]="!canAddProvider()">
+          {{ busyProviderId() === 'new' ? 'Saving' : 'Add provider' }}
+        </volt-button>
+      </form>
+
+      @if (isLoadingProviders() && providerProfiles().length === 0) {
+      <p class="status">Loading remote providers.</p>
+      } @else if (providerProfiles().length === 0) {
+      <p class="status">No remote providers yet.</p>
+      } @else {
+      <ul class="provider-list">
+        @for (profile of providerProfiles(); track profile.id) {
+        <li>
+          <volt-card class="provider-card">
+            <volt-card-content class="provider-card-content">
+              @if (editingProviderId() === profile.id) {
+              <form
+                class="provider-form"
+                (submit)="$event.preventDefault(); saveProviderEdit(profile)"
+              >
+                <volt-form-field class="text-field">
+                  <volt-label [htmlFor]="'provider-edit-label-' + profile.id"
+                    >Edit provider name</volt-label
+                  >
+                  <volt-input
+                    [id]="'provider-edit-label-' + profile.id"
+                    type="text"
+                    [value]="editProviderLabel()"
+                    (valueChange)="editProviderLabel.set($event)"
+                  />
+                </volt-form-field>
+                <volt-form-field class="text-field">
+                  <volt-label [htmlFor]="'provider-edit-endpoint-' + profile.id"
+                    >Edit endpoint</volt-label
+                  >
+                  <volt-input
+                    [id]="'provider-edit-endpoint-' + profile.id"
+                    type="url"
+                    [value]="editProviderEndpoint()"
+                    (valueChange)="editProviderEndpoint.set($event)"
+                  />
+                </volt-form-field>
+                <volt-form-field class="text-field">
+                  <volt-label [htmlFor]="'provider-edit-model-' + profile.id"
+                    >Edit model name</volt-label
+                  >
+                  <volt-input
+                    [id]="'provider-edit-model-' + profile.id"
+                    type="text"
+                    [value]="editProviderModel()"
+                    (valueChange)="editProviderModel.set($event)"
+                  />
+                </volt-form-field>
+                <div class="credential-actions">
+                  <volt-button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    (click)="cancelEditProvider()"
+                    >Cancel</volt-button
+                  >
+                  <volt-button type="submit" size="sm" [disabled]="busyProviderId() === profile.id">
+                    {{ busyProviderId() === profile.id ? 'Saving' : 'Save' }}
+                  </volt-button>
+                </div>
+                @if (editChangesEndpoint(profile)) {
+                <p class="field-hint">
+                  Saving a new endpoint removes the credential binding and the approval.
+                </p>
+                }
+              </form>
+              } @else {
+              <div class="summary">
+                <strong>{{ profile.label }}</strong>
+                <span class="provider-meta">{{ profile.endpoint }} · {{ profile.modelKey }}</span>
+                <span class="provider-meta">
+                  <volt-badge [variant]="profile.consent ? 'secondary' : 'outline'">
+                    {{ profile.consent ? 'Approved for this endpoint' : 'Not approved' }}
+                  </volt-badge>
+                </span>
+              </div>
+              <div class="provider-actions">
+                <volt-form-field class="text-field">
+                  <volt-label [htmlFor]="'provider-credential-' + profile.id"
+                    >Credential for {{ profile.label }}</volt-label
+                  >
+                  <select
+                    voltNativeSelect
+                    [id]="'provider-credential-' + profile.id"
+                    [disabled]="busyProviderId() === profile.id"
+                    (change)="bindProviderCredential(profile, $event)"
+                  >
+                    <option value="" [selected]="profile.credentialId === undefined">
+                      No credential
+                    </option>
+                    @for (credential of credentials(); track credential.id) {
+                    <option
+                      [value]="credential.id"
+                      [selected]="profile.credentialId === credential.id"
+                    >
+                      {{ credential.label }}
+                    </option>
+                    }
+                  </select>
+                </volt-form-field>
+                <div class="credential-actions">
+                  @if (profile.consent) {
+                  <volt-button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    [disabled]="busyProviderId() === profile.id"
+                    (click)="revokeProviderConsent(profile)"
+                  >
+                    Revoke approval
+                  </volt-button>
+                  }
+                  <volt-button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    (click)="startEditProvider(profile)"
+                  >
+                    Edit
+                  </volt-button>
+                  @if (pendingProviderDeleteId() === profile.id) {
+                  <volt-badge variant="destructive">Pending removal</volt-badge>
+                  } @else {
+                  <volt-button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    [disabled]="busyProviderId() === profile.id"
+                    (click)="requestDeleteProvider(profile.id, $event)"
+                  >
+                    <lmn-trash slot="leading" [size]="14" aria-hidden="true" />
+                    Remove
+                  </volt-button>
+                  }
+                </div>
+              </div>
+              }
+            </volt-card-content>
+          </volt-card>
+        </li>
+        }
+      </ul>
+      }
+    </section>
   </section>
 
   <section class="settings-cluster" aria-labelledby="local-ai-settings-title">
@@ -265,6 +482,38 @@
       </volt-accordion-item>
     </volt-accordion>
   </section>
+
+  <ng-template #deleteProviderDialog let-dialog>
+    <volt-card class="confirm-card">
+      <volt-card-header>
+        <volt-card-title id="delete-provider-title">Remove remote provider?</volt-card-title>
+        <volt-card-description id="delete-provider-description">
+          This removes the provider, its credential binding and its approval from Lattice.
+        </volt-card-description>
+      </volt-card-header>
+      <volt-card-content>
+        <p>Stored conversations and the credential itself are kept.</p>
+      </volt-card-content>
+      <volt-card-footer class="confirm-actions">
+        <volt-button
+          type="button"
+          variant="outline"
+          size="md"
+          (click)="clearPendingProviderDelete(); dialog.close()"
+        >
+          Cancel
+        </volt-button>
+        <volt-button
+          type="button"
+          variant="destructive"
+          size="md"
+          (click)="dialog.close(); deletePendingProvider()"
+        >
+          Remove
+        </volt-button>
+      </volt-card-footer>
+    </volt-card>
+  </ng-template>
 
   <ng-template #deleteCredentialDialog let-dialog>
     <volt-card class="confirm-card">

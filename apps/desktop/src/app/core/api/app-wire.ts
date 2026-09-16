@@ -17,7 +17,9 @@ import type {
   ModelDescriptor,
   ModelRuntimeStatus,
   ModelSlotStatus,
-  NativeAppInfo
+  NativeAppInfo,
+  ProviderConsent,
+  ProviderProfile
 } from '@lattice/types';
 
 const SAFE_APP_INFO_ERROR = 'Lattice could not read application information.';
@@ -27,6 +29,7 @@ const SAFE_MODEL_SLOT_ERROR = 'Lattice could not read model slot status.';
 const SAFE_CHAT_ERROR = 'Lattice could not start the chat response.';
 const SAFE_CONVERSATION_ERROR = 'Lattice could not read this conversation.';
 const SAFE_CREDENTIAL_ERROR = 'Lattice could not read this credential.';
+const SAFE_PROVIDER_ERROR = 'Lattice could not read this remote provider.';
 const MAX_SAFE_MESSAGE_LENGTH = 240;
 
 export function decodeAppInfo(value: unknown): AppInfo {
@@ -101,6 +104,22 @@ export function decodeCredentialRef(value: unknown): CredentialRef {
   throw createBridgeError(SAFE_CREDENTIAL_ERROR);
 }
 
+export function decodeProviderProfiles(value: unknown): readonly ProviderProfile[] {
+  if (Array.isArray(value) && value.every(isProviderProfile)) {
+    return value;
+  }
+
+  throw createBridgeError(SAFE_PROVIDER_ERROR);
+}
+
+export function decodeProviderProfile(value: unknown): ProviderProfile {
+  if (isProviderProfile(value)) {
+    return value;
+  }
+
+  throw createBridgeError(SAFE_PROVIDER_ERROR);
+}
+
 /**
  * Unlike the other `decode*` functions, this never throws: a chat stream
  * channel delivers many events over one run's lifetime, and one malformed
@@ -155,6 +174,10 @@ export function normalizeConversationError(error: unknown): AppError {
 
 export function normalizeCredentialError(error: unknown): AppError {
   return normalizeAppError(error, SAFE_CREDENTIAL_ERROR);
+}
+
+export function normalizeProviderError(error: unknown): AppError {
+  return normalizeAppError(error, SAFE_PROVIDER_ERROR);
 }
 
 function createBridgeError(message: string): AppError {
@@ -532,6 +555,35 @@ function isCredentialRef(value: unknown): value is CredentialRef {
 function isCredentialAvailability(value: unknown): value is CredentialAvailability {
   return (
     value === 'available' || value === 'locked' || value === 'missing' || value === 'unsupported'
+  );
+}
+
+function isProviderProfile(value: unknown): value is ProviderProfile {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value['id'] === 'string' &&
+    isPositiveInteger(value['revision']) &&
+    typeof value['label'] === 'string' &&
+    typeof value['endpoint'] === 'string' &&
+    value['endpoint'].startsWith('https://') &&
+    typeof value['modelKey'] === 'string' &&
+    optionalString(value['credentialId']) &&
+    (value['consent'] === undefined || isProviderConsent(value['consent'])) &&
+    isNonNegativeInteger(value['createdAtUnixSeconds']) &&
+    isNonNegativeInteger(value['updatedAtUnixSeconds'])
+  );
+}
+
+function isProviderConsent(value: unknown): value is ProviderConsent {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value['endpoint'] === 'string' && isNonNegativeInteger(value['grantedAtUnixSeconds'])
   );
 }
 

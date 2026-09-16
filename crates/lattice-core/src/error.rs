@@ -174,6 +174,87 @@ impl AppError {
             correlation_id: None,
         }
     }
+
+    pub const fn provider_invalid(message: &'static str) -> Self {
+        Self {
+            code: "provider.invalid",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn provider_not_found(message: &'static str) -> Self {
+        Self {
+            code: "provider.not_found",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn provider_conflict(message: &'static str) -> Self {
+        Self {
+            code: "provider.conflict",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn provider_consent_required(message: &'static str) -> Self {
+        Self {
+            code: "provider.consent_required",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn provider_auth_failed(message: &'static str) -> Self {
+        Self {
+            code: "provider.auth_failed",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn provider_rate_limited(message: &'static str) -> Self {
+        Self {
+            code: "provider.rate_limited",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn provider_timeout(message: &'static str) -> Self {
+        Self {
+            code: "provider.timeout",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn provider_unavailable(message: &'static str) -> Self {
+        Self {
+            code: "provider.unavailable",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
+
+    pub const fn provider_rejected(message: &'static str) -> Self {
+        Self {
+            code: "provider.rejected",
+            message,
+            recoverable: true,
+            correlation_id: None,
+        }
+    }
 }
 
 #[cfg(test)]

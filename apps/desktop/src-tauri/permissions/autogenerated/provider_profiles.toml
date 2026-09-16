@@ -1,0 +1,27 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-provider-profiles"
+description = "Enables remote provider profile, credential binding and consent commands without any pre-configured scope."
+commands.allow = [
+  "list_provider_profiles",
+  "create_provider_profile",
+  "update_provider_profile",
+  "delete_provider_profile",
+  "bind_provider_credential",
+  "grant_provider_consent",
+  "revoke_provider_consent",
+]
+
+[[permission]]
+identifier = "deny-provider-profiles"
+description = "Denies remote provider profile, credential binding and consent commands without any pre-configured scope."
+commands.deny = [
+  "list_provider_profiles",
+  "create_provider_profile",
+  "update_provider_profile",
+  "delete_provider_profile",
+  "bind_provider_credential",
+  "grant_provider_consent",
+  "revoke_provider_consent",
+]

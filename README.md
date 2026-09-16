@@ -8,7 +8,7 @@ Lattice is currently under active early development. This repository is a founda
 
 Lattice is planned as a local-first desktop application for running agentic workflows from one provider-agnostic workspace. The long-term product direction includes chat, workspaces, skills, memory, MCP, tasks, model runtime management, and optional integrations.
 
-Implemented now, on the active `0.8` branch (evidence limits recorded in `docs/verification/`, not yet archived into permanent OpenSpec specs):
+Implemented now, on the active roadmap branch through `0.11` (evidence limits recorded in `docs/verification/`, not yet archived into permanent OpenSpec specs):
 
 - Tauri 2 desktop shell with a restrictive production CSP and explicit command/window permissions (`0.3`).
 - Angular zoneless frontend with standalone APIs, signals, lazy routes, strict TypeScript settings, and strict template checking.
@@ -16,15 +16,17 @@ Implemented now, on the active `0.8` branch (evidence limits recorded in `docs/v
 - Rust-owned SQLite settings with versioned migrations, backups and revision conflicts (`0.4`).
 - Replaceable `ModelRuntime` discovery and owned/attached start-stop lifecycle for llmster, behind an isolated adapter (`0.5`–`0.6`).
 - Installed/loaded local model inventory with a single managed load slot (`0.7`).
-- A provider-neutral local completion port with streaming chat, cancellation and a model lease, backed by a local OpenAI-compatible (llmster) adapter (`0.8`).
+- A provider-neutral completion port with streaming chat, cancellation and a local model lease (`0.8`).
+- Conversation persistence: reopening and continuing chats after restart, with a History page (`0.9`).
+- Native OS-secure credential references backed by the macOS Keychain; secrets are entered natively and never reach the app window (`0.10`).
+- Remote OpenAI-compatible chat through HTTPS provider profiles with per-endpoint consent, switchable per message with local chat in the same conversation (`0.11`, see [docs/remote-providers.md](docs/remote-providers.md)).
 - Bun, Turborepo, and Cargo workspaces.
 - Vitest, Playwright, Biome, Angular ESLint, rustfmt, Clippy, and CI configuration.
 - OpenSpec-driven development for every change above.
 
 Not yet implemented:
 
-- Conversation persistence (reopening/continuing chats after restart) and remote/Anthropic/Gemini providers.
-- Native OS-secure credential storage.
+- Anthropic and Gemini providers.
 - Workspace filesystem scope, a bounded agent loop, tool execution (read/write/terminal), portable skills, MCP, explicit memory, Spaces, and tasks/scheduling.
 - Signed/notarized packaging and first-use qualification.
 
@@ -65,7 +67,7 @@ Pre-1.0 foundation. Do not treat future capabilities in the docs as implemented 
 - No Electron.
 - No persistent Node/Bun runtime for app infrastructure.
 - No real agent runtime, tool execution, MCP, skills, memory, tasks, spaces, or Kanban yet.
-- No remote provider integrations (OpenAI-compatible remote, Anthropic, Gemini), model downloading/marketplace, Wisp, or Vertex yet.
+- No Anthropic or Gemini providers, model downloading/marketplace, Wisp, or Vertex yet.
 
 ## Architecture Overview
 

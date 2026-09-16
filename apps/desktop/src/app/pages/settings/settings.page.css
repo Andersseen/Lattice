@@ -129,6 +129,7 @@ volt-tabs-trigger[data-state='active'] {
 
 .diagnostics,
 .credential-card,
+.provider-card,
 .confirm-card {
   display: block;
   border-radius: 0.5rem;
@@ -160,7 +161,8 @@ dd {
   overflow-wrap: anywhere;
 }
 
-.credentials-group {
+.credentials-group,
+.providers-group {
   grid-template-columns: 1fr;
   align-items: stretch;
   min-height: 0;
@@ -181,6 +183,15 @@ dd {
   min-width: 0;
 }
 
+.provider-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.provider-list,
 .credential-list {
   display: grid;
   gap: 0.75rem;
@@ -214,6 +225,39 @@ dd {
   text-transform: capitalize;
 }
 
+.provider-card-content {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.85rem 1rem;
+}
+
+.provider-card-content .summary {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.provider-meta {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.provider-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 18rem) auto;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.field-hint {
+  grid-column: 1 / -1;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
 .credential-actions {
   display: flex;
   align-items: center;
@@ -231,7 +275,9 @@ dd {
 }
 
 @media (max-width: 48rem) {
-  .credential-form {
+  .credential-form,
+  .provider-form,
+  .provider-actions {
     grid-template-columns: 1fr;
   }
 
