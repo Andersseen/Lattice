@@ -1,6 +1,7 @@
 use crate::app_info::GET_APP_INFO_COMMAND;
 use crate::conversations::{
     DELETE_CONVERSATION_COMMAND, GET_CONVERSATION_COMMAND, LIST_CONVERSATIONS_COMMAND,
+    LOCAL_PROVIDER_KEY,
 };
 use crate::credentials::{
     CREATE_CREDENTIAL_COMMAND, DELETE_CREDENTIAL_COMMAND, LIST_CREDENTIALS_COMMAND,
@@ -12,7 +13,12 @@ use crate::model_runtime::{
     GET_MODEL_SLOT_STATUS_COMMAND, LOAD_MODEL_COMMAND, PROBE_MODEL_RUNTIME_COMMAND,
     START_MODEL_RUNTIME_COMMAND, STOP_MODEL_RUNTIME_COMMAND, UNLOAD_MODEL_COMMAND,
 };
-use crate::providers::{CANCEL_CHAT_STREAM_COMMAND, START_CHAT_STREAM_COMMAND};
+use crate::providers::{
+    BIND_PROVIDER_CREDENTIAL_COMMAND, CANCEL_CHAT_STREAM_COMMAND, CREATE_PROVIDER_PROFILE_COMMAND,
+    DELETE_PROVIDER_PROFILE_COMMAND, GRANT_PROVIDER_CONSENT_COMMAND,
+    LIST_PROVIDER_PROFILES_COMMAND, REMOTE_PROVIDER_KEY, REVOKE_PROVIDER_CONSENT_COMMAND,
+    START_CHAT_STREAM_COMMAND, UPDATE_PROVIDER_PROFILE_COMMAND,
+};
 use crate::storage::{
     GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
 };
@@ -44,7 +50,14 @@ export const APP_COMMANDS = {{
   listCredentials: '{list_credentials_command}',
   createCredential: '{create_credential_command}',
   replaceCredential: '{replace_credential_command}',
-  deleteCredential: '{delete_credential_command}'
+  deleteCredential: '{delete_credential_command}',
+  listProviderProfiles: '{list_provider_profiles_command}',
+  createProviderProfile: '{create_provider_profile_command}',
+  updateProviderProfile: '{update_provider_profile_command}',
+  deleteProviderProfile: '{delete_provider_profile_command}',
+  bindProviderCredential: '{bind_provider_credential_command}',
+  grantProviderConsent: '{grant_provider_consent_command}',
+  revokeProviderConsent: '{revoke_provider_consent_command}'
 }} as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -254,11 +267,26 @@ export interface ChatRequest {{
   readonly messages: readonly ChatMessage[];
 }}
 
-// Amended by 0.9 (conversation persistence): the command's actual request
-// wraps the unchanged ChatRequest above with conversation identity.
+export interface ChatTargetLocal {{
+  readonly kind: 'local';
+}}
+
+export interface ChatTargetRemote {{
+  readonly kind: 'remote';
+  readonly profileId: string;
+}}
+
+// Which destination one chat request is sent to (0.11); applies to that
+// request only.
+export type ChatTarget = ChatTargetLocal | ChatTargetRemote;
+
+// Amended by 0.9 (conversation persistence) with conversation identity and
+// by 0.11 (remote OpenAI-compatible chat) with the per-request target; the
+// ChatRequest above is unchanged.
 export interface StartChatStreamRequest {{
   readonly conversationId: string | null;
   readonly chat: ChatRequest;
+  readonly target: ChatTarget;
 }}
 
 export interface ChatRunHandle {{
@@ -400,6 +428,71 @@ export interface ReplaceCredentialRequest {{
 export interface DeleteCredentialRequest {{
   readonly id: string;
 }}
+
+// Provenance keys recorded on assistant messages (`Message.providerKey`).
+export const PROVIDER_KEYS = {{
+  local: '{local_provider_key}',
+  remote: '{remote_provider_key}'
+}} as const;
+
+// Consent to send conversation context to exactly this endpoint; only
+// present while it equals the profile's current endpoint.
+export interface ProviderConsent {{
+  readonly endpoint: string;
+  readonly grantedAtUnixSeconds: number;
+}}
+
+// A remote OpenAI-compatible provider profile. `credentialId` is a
+// reference only; no field ever carries a secret.
+export interface ProviderProfile {{
+  readonly id: string;
+  readonly revision: number;
+  readonly label: string;
+  readonly endpoint: string;
+  readonly modelKey: string;
+  readonly credentialId?: string;
+  readonly consent?: ProviderConsent;
+  readonly createdAtUnixSeconds: number;
+  readonly updatedAtUnixSeconds: number;
+}}
+
+export interface CreateProviderProfileRequest {{
+  readonly label: string;
+  readonly endpoint: string;
+  readonly modelKey: string;
+  readonly credentialId: string | null;
+}}
+
+// Carries no credential: changing the endpoint clears the credential binding
+// and consent, which must then be given again explicitly.
+export interface UpdateProviderProfileRequest {{
+  readonly id: string;
+  readonly expectedRevision: number;
+  readonly label: string;
+  readonly endpoint: string;
+  readonly modelKey: string;
+}}
+
+export interface DeleteProviderProfileRequest {{
+  readonly id: string;
+}}
+
+export interface BindProviderCredentialRequest {{
+  readonly id: string;
+  readonly expectedRevision: number;
+  readonly credentialId: string | null;
+}}
+
+export interface GrantProviderConsentRequest {{
+  readonly id: string;
+  readonly expectedRevision: number;
+  readonly endpoint: string;
+}}
+
+export interface RevokeProviderConsentRequest {{
+  readonly id: string;
+  readonly expectedRevision: number;
+}}
 "#,
         get_app_info_command = GET_APP_INFO_COMMAND,
         get_app_settings_command = GET_APP_SETTINGS_COMMAND,
@@ -423,7 +516,16 @@ export interface DeleteCredentialRequest {{
         list_credentials_command = LIST_CREDENTIALS_COMMAND,
         create_credential_command = CREATE_CREDENTIAL_COMMAND,
         replace_credential_command = REPLACE_CREDENTIAL_COMMAND,
-        delete_credential_command = DELETE_CREDENTIAL_COMMAND
+        delete_credential_command = DELETE_CREDENTIAL_COMMAND,
+        list_provider_profiles_command = LIST_PROVIDER_PROFILES_COMMAND,
+        create_provider_profile_command = CREATE_PROVIDER_PROFILE_COMMAND,
+        update_provider_profile_command = UPDATE_PROVIDER_PROFILE_COMMAND,
+        delete_provider_profile_command = DELETE_PROVIDER_PROFILE_COMMAND,
+        bind_provider_credential_command = BIND_PROVIDER_CREDENTIAL_COMMAND,
+        grant_provider_consent_command = GRANT_PROVIDER_CONSENT_COMMAND,
+        revoke_provider_consent_command = REVOKE_PROVIDER_CONSENT_COMMAND,
+        local_provider_key = LOCAL_PROVIDER_KEY,
+        remote_provider_key = REMOTE_PROVIDER_KEY
     )
 }
 

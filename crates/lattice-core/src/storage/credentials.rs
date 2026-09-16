@@ -30,7 +30,7 @@ impl CredentialStore {
         Self::open_with_store(path, crate::credentials::new_secret_store())
     }
 
-    fn open_with_store(
+    pub(super) fn open_with_store(
         path: impl AsRef<Path>,
         secret_store: Box<dyn SecretStore>,
     ) -> Result<Self, AppError> {
@@ -120,7 +120,7 @@ impl CredentialStore {
     /// Keychain Write Failure Leaves No Orphaned Reference"). Takes an
     /// explicit prompt so tests can inject `FakeSecretPrompt`; `create`
     /// above is the production entry point.
-    fn create_with_prompt(
+    pub(super) fn create_with_prompt(
         &mut self,
         request: CreateCredentialRequest,
         prompt: &dyn SecretPrompt,

@@ -23,7 +23,14 @@ export const APP_COMMANDS = {
   listCredentials: 'list_credentials',
   createCredential: 'create_credential',
   replaceCredential: 'replace_credential',
-  deleteCredential: 'delete_credential'
+  deleteCredential: 'delete_credential',
+  listProviderProfiles: 'list_provider_profiles',
+  createProviderProfile: 'create_provider_profile',
+  updateProviderProfile: 'update_provider_profile',
+  deleteProviderProfile: 'delete_provider_profile',
+  bindProviderCredential: 'bind_provider_credential',
+  grantProviderConsent: 'grant_provider_consent',
+  revokeProviderConsent: 'revoke_provider_consent'
 } as const;
 
 export type AppCommand = (typeof APP_COMMANDS)[keyof typeof APP_COMMANDS];
@@ -233,11 +240,26 @@ export interface ChatRequest {
   readonly messages: readonly ChatMessage[];
 }
 
-// Amended by 0.9 (conversation persistence): the command's actual request
-// wraps the unchanged ChatRequest above with conversation identity.
+export interface ChatTargetLocal {
+  readonly kind: 'local';
+}
+
+export interface ChatTargetRemote {
+  readonly kind: 'remote';
+  readonly profileId: string;
+}
+
+// Which destination one chat request is sent to (0.11); applies to that
+// request only.
+export type ChatTarget = ChatTargetLocal | ChatTargetRemote;
+
+// Amended by 0.9 (conversation persistence) with conversation identity and
+// by 0.11 (remote OpenAI-compatible chat) with the per-request target; the
+// ChatRequest above is unchanged.
 export interface StartChatStreamRequest {
   readonly conversationId: string | null;
   readonly chat: ChatRequest;
+  readonly target: ChatTarget;
 }
 
 export interface ChatRunHandle {
@@ -378,4 +400,69 @@ export interface ReplaceCredentialRequest {
 
 export interface DeleteCredentialRequest {
   readonly id: string;
+}
+
+// Provenance keys recorded on assistant messages (`Message.providerKey`).
+export const PROVIDER_KEYS = {
+  local: 'local-openai-compatible',
+  remote: 'remote-openai-compatible'
+} as const;
+
+// Consent to send conversation context to exactly this endpoint; only
+// present while it equals the profile's current endpoint.
+export interface ProviderConsent {
+  readonly endpoint: string;
+  readonly grantedAtUnixSeconds: number;
+}
+
+// A remote OpenAI-compatible provider profile. `credentialId` is a
+// reference only; no field ever carries a secret.
+export interface ProviderProfile {
+  readonly id: string;
+  readonly revision: number;
+  readonly label: string;
+  readonly endpoint: string;
+  readonly modelKey: string;
+  readonly credentialId?: string;
+  readonly consent?: ProviderConsent;
+  readonly createdAtUnixSeconds: number;
+  readonly updatedAtUnixSeconds: number;
+}
+
+export interface CreateProviderProfileRequest {
+  readonly label: string;
+  readonly endpoint: string;
+  readonly modelKey: string;
+  readonly credentialId: string | null;
+}
+
+// Carries no credential: changing the endpoint clears the credential binding
+// and consent, which must then be given again explicitly.
+export interface UpdateProviderProfileRequest {
+  readonly id: string;
+  readonly expectedRevision: number;
+  readonly label: string;
+  readonly endpoint: string;
+  readonly modelKey: string;
+}
+
+export interface DeleteProviderProfileRequest {
+  readonly id: string;
+}
+
+export interface BindProviderCredentialRequest {
+  readonly id: string;
+  readonly expectedRevision: number;
+  readonly credentialId: string | null;
+}
+
+export interface GrantProviderConsentRequest {
+  readonly id: string;
+  readonly expectedRevision: number;
+  readonly endpoint: string;
+}
+
+export interface RevokeProviderConsentRequest {
+  readonly id: string;
+  readonly expectedRevision: number;
 }

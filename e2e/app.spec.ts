@@ -137,7 +137,7 @@ test('a credential can be added, replaced, and removed in browser preview', asyn
 
   await page.getByRole('textbox', { name: 'Label' }).fill('Personal provider key');
   await page.getByRole('textbox', { name: 'Credential key' }).fill('local-preview');
-  await page.getByRole('button', { name: 'Add' }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
 
   const credentialCard = page.locator('.credential-card');
   await expect(credentialCard.getByText('Personal provider key', { exact: true })).toBeVisible();
@@ -152,6 +152,149 @@ test('a credential can be added, replaced, and removed in browser preview', asyn
   await page.getByRole('dialog').getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(page.getByText('No credentials yet.')).toBeVisible();
 });
+
+test('a remote provider can be added, edited, rebound, and removed in Settings', async ({
+  page
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await addCredential(page, 'Remote key');
+  await expect(page.getByText('No remote providers yet.')).toBeVisible();
+
+  await page.getByRole('textbox', { name: 'Provider name' }).fill('Example AI');
+  await page
+    .getByRole('textbox', { name: 'Endpoint', exact: true })
+    .fill('http://api.example.com/v1');
+  await page.getByRole('textbox', { name: 'Model name', exact: true }).fill('gpt-test');
+  await page.getByRole('button', { name: 'Add provider' }).click();
+  await expect(page.getByText('Remote endpoints must start with https://.')).toBeVisible();
+
+  await page
+    .getByRole('textbox', { name: 'Endpoint', exact: true })
+    .fill('https://API.example.com/v1/');
+  await page.getByRole('combobox', { name: 'Credential', exact: true }).selectOption({
+    label: 'Remote key'
+  });
+  await page.getByRole('button', { name: 'Add provider' }).click();
+
+  const providerCard = page.locator('.provider-card');
+  const credentialSelect = providerCard.getByRole('combobox', {
+    name: 'Credential for Example AI'
+  });
+  await expect(providerCard.getByText('https://api.example.com/v1 · gpt-test')).toBeVisible();
+  await expect(providerCard.getByText('Not approved')).toBeVisible();
+  await expect(credentialSelect.locator('option:checked')).toHaveText('Remote key');
+
+  await providerCard.getByRole('button', { name: 'Edit' }).click();
+  await providerCard
+    .getByRole('textbox', { name: 'Edit endpoint' })
+    .fill('https://other.example.com/v1');
+  await expect(
+    providerCard.getByText('Saving a new endpoint removes the credential binding and the approval.')
+  ).toBeVisible();
+  await providerCard.getByRole('button', { name: 'Save' }).click();
+  await expect(providerCard.getByText('https://other.example.com/v1 · gpt-test')).toBeVisible();
+  await expect(credentialSelect.locator('option:checked')).toHaveText('No credential');
+
+  await credentialSelect.selectOption({ label: 'Remote key' });
+  await expect(credentialSelect.locator('option:checked')).toHaveText('Remote key');
+
+  await providerCard.getByRole('button', { name: 'Remove' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(page.getByText('No remote providers yet.')).toBeVisible();
+});
+
+test('one conversation switches local, remote after approval, then local and keeps provenance', async ({
+  page
+}) => {
+  await loadQwenModel(page);
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await addCredential(page, 'Remote key');
+  await addRemoteProvider(page, 'Example AI', 'https://api.example.com/v1', 'gpt-test');
+
+  await page.getByRole('link', { name: 'Chat', exact: true }).click();
+  await sendMessage(page, 'Local question');
+  await expectReplyComplete(page, 1, LOCAL_SIMULATED_REPLY);
+
+  const provider = page.getByRole('combobox', { name: 'Provider' });
+  await provider.selectOption({ label: 'Example AI' });
+  await expect(page.getByText('gpt-test', { exact: true })).toBeVisible();
+
+  await sendMessage(page, 'Remote question');
+  const disclosure = page.getByRole('dialog', { name: 'Send this conversation to Example AI?' });
+  await expect(disclosure).toBeVisible();
+  await expect(disclosure.getByText('https://api.example.com/v1')).toBeVisible();
+  await expect(disclosure.getByText('Remote key')).toBeVisible();
+  await disclosure.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.message')).toHaveCount(2);
+  await expect(page.getByRole('textbox', { name: 'Message' })).toHaveValue('Remote question');
+
+  await page.getByRole('button', { name: 'Send' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Allow and send' }).click();
+  await expectReplyComplete(
+    page,
+    3,
+    'This is a simulated remote response from Example AI because Lattice is running as a browser preview without the desktop shell.'
+  );
+  await expect(page.locator('.message.assistant .provenance').last()).toHaveText(
+    '· Remote · gpt-test'
+  );
+
+  await provider.selectOption({ label: 'Local model' });
+  await sendMessage(page, 'Back to local');
+  await expectReplyComplete(page, 5, LOCAL_SIMULATED_REPLY);
+
+  await page.getByRole('button', { name: 'New chat' }).click();
+  await page.locator('.conversation-button').filter({ hasText: 'Local question' }).click();
+  await expect(page.locator('.message')).toHaveCount(6);
+  await expect(page.locator('.message.assistant .provenance')).toHaveText([
+    `· Local · ${QWEN_MODEL_KEY}`,
+    '· Remote · gpt-test',
+    `· Local · ${QWEN_MODEL_KEY}`
+  ]);
+
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  const providerCard = page.locator('.provider-card');
+  await expect(providerCard.getByText('Approved for this endpoint')).toBeVisible();
+  await providerCard.getByRole('button', { name: 'Revoke approval' }).click();
+  await expect(providerCard.getByText('Not approved')).toBeVisible();
+});
+
+const LOCAL_SIMULATED_REPLY =
+  'This is a simulated response because Lattice is running as a browser preview without the desktop shell.';
+
+/** Waits until the message at `index` shows its full reply and the composer can send again. */
+async function expectReplyComplete(page: Page, index: number, text: string): Promise<void> {
+  await expect(page.locator('.message').nth(index).locator('.text')).toHaveText(text, {
+    timeout: 10_000
+  });
+  await expect(page.locator('.message').nth(index).locator('.cursor')).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Provider' })).toBeEnabled();
+}
+
+async function addCredential(page: Page, label: string): Promise<void> {
+  await page.getByRole('textbox', { name: 'Label' }).fill(label);
+  await page.getByRole('textbox', { name: 'Credential key' }).fill('openai');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.locator('.credential-card').getByText(label, { exact: true })).toBeVisible();
+}
+
+async function addRemoteProvider(
+  page: Page,
+  label: string,
+  endpoint: string,
+  modelKey: string
+): Promise<void> {
+  await page.getByRole('textbox', { name: 'Provider name' }).fill(label);
+  await page.getByRole('textbox', { name: 'Endpoint', exact: true }).fill(endpoint);
+  await page.getByRole('textbox', { name: 'Model name', exact: true }).fill(modelKey);
+  await page.getByRole('combobox', { name: 'Credential', exact: true }).selectOption({
+    label: 'Remote key'
+  });
+  await page.getByRole('button', { name: 'Add provider' }).click();
+  await expect(page.locator('.provider-card').getByText(label, { exact: true })).toBeVisible();
+}
 
 async function configureAndStartRuntime(page: Page): Promise<void> {
   await page.goto('/');

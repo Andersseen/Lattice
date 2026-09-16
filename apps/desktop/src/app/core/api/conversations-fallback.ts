@@ -38,7 +38,6 @@ const MAX_CONVERSATIONS_PAGE_SIZE = 50;
 const DEFAULT_MESSAGES_PAGE_SIZE = 50;
 const MAX_MESSAGES_PAGE_SIZE = 100;
 const MAX_TITLE_CHARS = 80;
-const LOCAL_PROVIDER_KEY = 'local-openai-compatible';
 
 /** A mutable working copy of `Message`: the fallback owns and mutates these
  *  records in place (checkpoint/finalize), unlike the real IPC boundary
@@ -112,7 +111,11 @@ export function beginOrContinueWebConversation(
   return conversationId;
 }
 
-export function startWebAssistantMessage(conversationId: string, modelKey: string): string {
+export function startWebAssistantMessage(
+  conversationId: string,
+  providerKey: string,
+  modelKey: string
+): string {
   const conversation = conversations.get(conversationId);
   if (conversation === undefined) {
     throw CONVERSATION_NOT_FOUND;
@@ -127,7 +130,7 @@ export function startWebAssistantMessage(conversationId: string, modelKey: strin
     role: 'assistant',
     text: '',
     status: 'streaming',
-    providerKey: LOCAL_PROVIDER_KEY,
+    providerKey,
     modelKey,
     createdAtUnixSeconds: now,
     updatedAtUnixSeconds: now

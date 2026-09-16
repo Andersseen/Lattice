@@ -1,14 +1,18 @@
 use lattice_core::{
-    app_info, authorize_chat_request, new_chat_run_id, run_chat_stream, AppError, AppInfo,
-    AppSettings, CancelChatStreamRequest, CancelModelOperationRequest,
-    CancelModelRuntimeOperationRequest, ChatRequest, ChatRunHandle, ChatStreamEvent,
-    ConfigureModelRuntimeRequest, ConversationDetail, ConversationStore, CreateCredentialRequest,
+    app_info, authorize_chat_request, new_chat_run_id, prepare_remote_target, run_chat_stream,
+    AppError, AppInfo, AppSettings, BindProviderCredentialRequest, CancelChatStreamRequest,
+    CancelModelOperationRequest, CancelModelRuntimeOperationRequest, ChatRequest, ChatRunHandle,
+    ChatStreamEvent, ChatTarget, CompletionTarget, ConfigureModelRuntimeRequest,
+    ConversationDetail, ConversationStore, CreateCredentialRequest, CreateProviderProfileRequest,
     CredentialRef, CredentialStore, DeleteConversationRequest, DeleteCredentialRequest,
-    GenerationStatus, GetConversationRequest, GetModelSlotStatusRequest, ListConversationsRequest,
+    DeleteProviderProfileRequest, GenerationStatus, GetConversationRequest,
+    GetModelSlotStatusRequest, GrantProviderConsentRequest, ListConversationsRequest,
     ListConversationsResponse, LoadModelRequest, ModelRuntimeStatus, ModelSlotStatus,
-    ProbeModelRuntimeRequest, ReplaceCredentialRequest, ResetAppSettingsRequest, SettingsStore,
-    StartChatStreamRequest, StartModelRuntimeRequest, StopModelRuntimeRequest, UnloadModelRequest,
-    UpdateAppSettingsRequest, CHECKPOINT_DELTA_BATCH, CHECKPOINT_MIN_INTERVAL,
+    ProbeModelRuntimeRequest, ProviderProfile, ProviderProfileStore, ReplaceCredentialRequest,
+    ResetAppSettingsRequest, RevokeProviderConsentRequest, SettingsStore, StartChatStreamRequest,
+    StartModelRuntimeRequest, StopModelRuntimeRequest, UnloadModelRequest,
+    UpdateAppSettingsRequest, UpdateProviderProfileRequest, CHECKPOINT_DELTA_BATCH,
+    CHECKPOINT_MIN_INTERVAL,
 };
 use std::{
     path::PathBuf,
@@ -28,6 +32,7 @@ struct DesktopState {
     settings: Mutex<SettingsStore>,
     conversations: Mutex<ConversationStore>,
     credentials: Mutex<CredentialStore>,
+    provider_profiles: Mutex<ProviderProfileStore>,
     runtime_operation_cancelled: Arc<AtomicBool>,
     model_operation_cancelled: Arc<AtomicBool>,
     active_chat_run: Mutex<Option<ActiveChatRun>>,
@@ -42,10 +47,14 @@ struct DesktopState {
 /// this slot and `begin_or_continue` resolving the real ID (see
 /// `start_chat_stream`); an empty string never matches a real conversation
 /// ID, so `delete_conversation`'s conflict check stays correct throughout.
+/// `holds_local_model_lease` (0.11) is decided from the request's target
+/// when the slot is reserved, so only a local run ever blocks
+/// `unload_model` — including during the reservation window.
 struct ActiveChatRun {
     run_id: String,
     conversation_id: String,
     cancel: Arc<AtomicBool>,
+    holds_local_model_lease: bool,
 }
 
 #[tauri::command]
@@ -158,12 +167,16 @@ fn unload_model(
     state: tauri::State<'_, DesktopState>,
     request: UnloadModelRequest,
 ) -> Result<ModelSlotStatus, AppError> {
-    let chat_run_active = state
+    let local_chat_run_active = state
         .active_chat_run
         .lock()
-        .map(|guard| guard.is_some())
+        .map(|guard| {
+            guard
+                .as_ref()
+                .is_some_and(|active| active.holds_local_model_lease)
+        })
         .unwrap_or(false);
-    if chat_run_active {
+    if local_chat_run_active {
         return Err(AppError::runtime_conflict(
             "Cancel the active chat before unloading its model.",
         ));
@@ -219,11 +232,12 @@ fn start_chat_stream(
             run_id: run_id.clone(),
             conversation_id: String::new(),
             cancel: cancel.clone(),
+            holds_local_model_lease: matches!(request.target, ChatTarget::Local),
         });
     }
 
     match begin_or_start_chat_stream(&state, &request) {
-        Ok((endpoint, conversation_id, message_id)) => {
+        Ok((target, conversation_id, message_id)) => {
             if let Ok(mut active_chat_run) = state.active_chat_run.lock() {
                 if let Some(active) = active_chat_run.as_mut() {
                     if active.run_id == run_id {
@@ -248,7 +262,7 @@ fn start_chat_stream(
                     run_id: guard_run_id,
                 };
                 let mut checkpoint = ChatCheckpointSink::new(checkpoint_app, message_id);
-                run_chat_stream(&endpoint, run_id, request.chat, &cancel, move |event| {
+                run_chat_stream(target, run_id, request.chat, &cancel, move |event| {
                     checkpoint.observe(&event);
                     let _ = channel.send(event);
                 });
@@ -262,25 +276,53 @@ fn start_chat_stream(
     }
 }
 
-/// Checks preconditions exactly as 0.8's `begin_chat_stream` did, then (only
-/// once they pass) persists the request's new trailing message(s) against
+/// Resolves and authorizes the request's target (0.11), then (only once
+/// that passes) persists the request's new trailing message(s) against
 /// `conversation_id` — creating a new conversation when it is `None` — and
-/// starts the empty `streaming` assistant message row. No conversation or
-/// message is ever written for a request that fails its preconditions.
+/// starts the empty `streaming` assistant message row with the target's
+/// provenance. No conversation or message is ever written for a request
+/// that fails its preconditions (0.9).
 fn begin_or_start_chat_stream(
     state: &tauri::State<'_, DesktopState>,
     request: &StartChatStreamRequest,
-) -> Result<(String, String, String), AppError> {
-    let endpoint = begin_chat_stream(state, &request.chat)?;
+) -> Result<(CompletionTarget, String, String), AppError> {
+    let target = resolve_chat_target(state, request)?;
 
     let conversation_id = with_conversation_store(state, |store| {
         store.begin_or_continue(request.conversation_id.as_deref(), &request.chat.messages)
     })?;
     let message_id = with_conversation_store(state, |store| {
-        store.start_assistant_message(&conversation_id, &request.chat.model_key)
+        store.start_assistant_message(
+            &conversation_id,
+            target.provider_key(),
+            &request.chat.model_key,
+        )
     })?;
 
-    Ok((endpoint, conversation_id, message_id))
+    Ok((target, conversation_id, message_id))
+}
+
+/// Local: 0.8's lease and endpoint preconditions. Remote: reads the profile
+/// and hands it to `prepare_remote_target`, which checks the model and
+/// destination-bound consent before resolving the bound credential. Each
+/// store is locked on its own and released before the next one is taken,
+/// so no lock ordering between stores exists to deadlock on.
+fn resolve_chat_target(
+    state: &tauri::State<'_, DesktopState>,
+    request: &StartChatStreamRequest,
+) -> Result<CompletionTarget, AppError> {
+    match &request.target {
+        ChatTarget::Local => Ok(CompletionTarget::local(&begin_chat_stream(
+            state,
+            &request.chat,
+        )?)),
+        ChatTarget::Remote { profile_id } => {
+            let profile = with_provider_profile_store(state, |store| store.get(profile_id))?;
+            prepare_remote_target(&profile, &request.chat, |credential_id| {
+                with_credential_store(state, |store| store.resolve_secret(credential_id))
+            })
+        }
+    }
 }
 
 /// Accumulates a streaming assistant reply and checkpoints it into
@@ -499,6 +541,63 @@ fn delete_credential(
     with_credential_store(&state, |store| store.delete(request))
 }
 
+#[tauri::command]
+fn list_provider_profiles(
+    state: tauri::State<'_, DesktopState>,
+) -> Result<Vec<ProviderProfile>, AppError> {
+    with_provider_profile_store(&state, |store| store.list())
+}
+
+#[tauri::command]
+fn create_provider_profile(
+    state: tauri::State<'_, DesktopState>,
+    request: CreateProviderProfileRequest,
+) -> Result<ProviderProfile, AppError> {
+    with_provider_profile_store(&state, |store| store.create(request))
+}
+
+#[tauri::command]
+fn update_provider_profile(
+    state: tauri::State<'_, DesktopState>,
+    request: UpdateProviderProfileRequest,
+) -> Result<ProviderProfile, AppError> {
+    with_provider_profile_store(&state, |store| store.update(request))
+}
+
+/// Allowed while a run is active: a running remote run already owns its
+/// resolved target, so deleting the profile affects only later requests.
+#[tauri::command]
+fn delete_provider_profile(
+    state: tauri::State<'_, DesktopState>,
+    request: DeleteProviderProfileRequest,
+) -> Result<(), AppError> {
+    with_provider_profile_store(&state, |store| store.delete(request))
+}
+
+#[tauri::command]
+fn bind_provider_credential(
+    state: tauri::State<'_, DesktopState>,
+    request: BindProviderCredentialRequest,
+) -> Result<ProviderProfile, AppError> {
+    with_provider_profile_store(&state, |store| store.bind_credential(request))
+}
+
+#[tauri::command]
+fn grant_provider_consent(
+    state: tauri::State<'_, DesktopState>,
+    request: GrantProviderConsentRequest,
+) -> Result<ProviderProfile, AppError> {
+    with_provider_profile_store(&state, |store| store.grant_consent(request))
+}
+
+#[tauri::command]
+fn revoke_provider_consent(
+    state: tauri::State<'_, DesktopState>,
+    request: RevokeProviderConsentRequest,
+) -> Result<ProviderProfile, AppError> {
+    with_provider_profile_store(&state, |store| store.revoke_consent(request))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if let Err(error) = run_desktop_shell() {
@@ -523,10 +622,14 @@ fn run_desktop_shell() -> Result<(), tauri::Error> {
             // reference metadata lives in this file; the secret itself
             // never does (see `credentials`'s module doc comment).
             let credentials = CredentialStore::open(&settings_path)?;
+            // Same file, fourth connection. Opened after `credentials`, whose
+            // table its `credential_id` foreign key references.
+            let provider_profiles = ProviderProfileStore::open(&settings_path)?;
             app.manage(DesktopState {
                 settings: Mutex::new(settings),
                 conversations: Mutex::new(conversations),
                 credentials: Mutex::new(credentials),
+                provider_profiles: Mutex::new(provider_profiles),
                 runtime_operation_cancelled: Arc::new(AtomicBool::new(false)),
                 model_operation_cancelled: Arc::new(AtomicBool::new(false)),
                 active_chat_run: Mutex::new(None),
@@ -561,7 +664,14 @@ fn run_desktop_shell() -> Result<(), tauri::Error> {
             list_credentials,
             create_credential,
             replace_credential,
-            delete_credential
+            delete_credential,
+            list_provider_profiles,
+            create_provider_profile,
+            update_provider_profile,
+            delete_provider_profile,
+            bind_provider_credential,
+            grant_provider_consent,
+            revoke_provider_consent
         ])
         .build(tauri::generate_context!())?;
 
@@ -643,6 +753,17 @@ fn with_credential_store<T>(
     operation(&mut credentials)
 }
 
+fn with_provider_profile_store<T>(
+    state: &tauri::State<'_, DesktopState>,
+    operation: impl FnOnce(&mut ProviderProfileStore) -> Result<T, AppError>,
+) -> Result<T, AppError> {
+    let mut provider_profiles = state.provider_profiles.lock().map_err(|_| {
+        AppError::storage_unavailable("Lattice could not access local provider storage.")
+    })?;
+
+    operation(&mut provider_profiles)
+}
+
 fn exit_after_startup_failure(error: &tauri::Error) -> ! {
     eprintln!("{}", startup_failure_message(error));
     std::process::exit(STARTUP_FAILURE_EXIT_CODE);
@@ -656,15 +777,17 @@ fn startup_failure_message(error: &tauri::Error) -> String {
 mod tests {
     use super::{get_app_info, startup_failure_message, STARTUP_FAILURE_EXIT_CODE};
     use lattice_core::{
-        AppRuntime, CANCEL_CHAT_STREAM_COMMAND, CANCEL_MODEL_OPERATION_COMMAND,
-        CANCEL_MODEL_RUNTIME_OPERATION_COMMAND, CONFIGURE_MODEL_RUNTIME_COMMAND,
-        CREATE_CREDENTIAL_COMMAND, DELETE_CONVERSATION_COMMAND, DELETE_CREDENTIAL_COMMAND,
-        GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND, GET_CONVERSATION_COMMAND,
-        GET_MODEL_RUNTIME_STATUS_COMMAND, GET_MODEL_SLOT_STATUS_COMMAND,
-        LIST_CONVERSATIONS_COMMAND, LIST_CREDENTIALS_COMMAND, LOAD_MODEL_COMMAND,
-        PROBE_MODEL_RUNTIME_COMMAND, REPLACE_CREDENTIAL_COMMAND, RESET_APP_SETTINGS_COMMAND,
+        AppRuntime, BIND_PROVIDER_CREDENTIAL_COMMAND, CANCEL_CHAT_STREAM_COMMAND,
+        CANCEL_MODEL_OPERATION_COMMAND, CANCEL_MODEL_RUNTIME_OPERATION_COMMAND,
+        CONFIGURE_MODEL_RUNTIME_COMMAND, CREATE_CREDENTIAL_COMMAND,
+        CREATE_PROVIDER_PROFILE_COMMAND, DELETE_CONVERSATION_COMMAND, DELETE_CREDENTIAL_COMMAND,
+        DELETE_PROVIDER_PROFILE_COMMAND, GET_APP_INFO_COMMAND, GET_APP_SETTINGS_COMMAND,
+        GET_CONVERSATION_COMMAND, GET_MODEL_RUNTIME_STATUS_COMMAND, GET_MODEL_SLOT_STATUS_COMMAND,
+        GRANT_PROVIDER_CONSENT_COMMAND, LIST_CONVERSATIONS_COMMAND, LIST_CREDENTIALS_COMMAND,
+        LIST_PROVIDER_PROFILES_COMMAND, LOAD_MODEL_COMMAND, PROBE_MODEL_RUNTIME_COMMAND,
+        REPLACE_CREDENTIAL_COMMAND, RESET_APP_SETTINGS_COMMAND, REVOKE_PROVIDER_CONSENT_COMMAND,
         START_CHAT_STREAM_COMMAND, START_MODEL_RUNTIME_COMMAND, STOP_MODEL_RUNTIME_COMMAND,
-        UNLOAD_MODEL_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
+        UNLOAD_MODEL_COMMAND, UPDATE_APP_SETTINGS_COMMAND, UPDATE_PROVIDER_PROFILE_COMMAND,
     };
     use serde_json::Value;
     use std::{error::Error, fs, io, path::PathBuf};
@@ -706,7 +829,14 @@ mod tests {
                 LIST_CREDENTIALS_COMMAND,
                 CREATE_CREDENTIAL_COMMAND,
                 REPLACE_CREDENTIAL_COMMAND,
-                DELETE_CREDENTIAL_COMMAND
+                DELETE_CREDENTIAL_COMMAND,
+                LIST_PROVIDER_PROFILES_COMMAND,
+                CREATE_PROVIDER_PROFILE_COMMAND,
+                UPDATE_PROVIDER_PROFILE_COMMAND,
+                DELETE_PROVIDER_PROFILE_COMMAND,
+                BIND_PROVIDER_CREDENTIAL_COMMAND,
+                GRANT_PROVIDER_CONSENT_COMMAND,
+                REVOKE_PROVIDER_CONSENT_COMMAND
             ],
             [
                 "get_app_info",
@@ -731,7 +861,14 @@ mod tests {
                 "list_credentials",
                 "create_credential",
                 "replace_credential",
-                "delete_credential"
+                "delete_credential",
+                "list_provider_profiles",
+                "create_provider_profile",
+                "update_provider_profile",
+                "delete_provider_profile",
+                "bind_provider_credential",
+                "grant_provider_consent",
+                "revoke_provider_consent"
             ]
         );
     }
@@ -810,7 +947,8 @@ mod tests {
                 "allow-local-models".to_string(),
                 "allow-chat-streaming".to_string(),
                 "allow-conversations".to_string(),
-                "allow-credentials".to_string()
+                "allow-credentials".to_string(),
+                "allow-provider-profiles".to_string()
             ]
         );
         assert!(capability.get("remote").is_none());

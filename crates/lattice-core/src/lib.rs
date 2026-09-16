@@ -13,7 +13,7 @@ pub use conversations::{
     ConversationCursor, ConversationDetail, ConversationSummary, DeleteConversationRequest,
     GenerationStatus, GetConversationRequest, ListConversationsRequest, ListConversationsResponse,
     Message, CHECKPOINT_DELTA_BATCH, CHECKPOINT_MIN_INTERVAL, DELETE_CONVERSATION_COMMAND,
-    GET_CONVERSATION_COMMAND, LIST_CONVERSATIONS_COMMAND,
+    GET_CONVERSATION_COMMAND, LIST_CONVERSATIONS_COMMAND, LOCAL_PROVIDER_KEY,
 };
 pub use credentials::{
     new_credential_id, CreateCredentialRequest, CredentialAvailability, CredentialRef,
@@ -35,14 +35,21 @@ pub use model_runtime::{
     STOP_MODEL_RUNTIME_COMMAND, UNLOAD_MODEL_COMMAND,
 };
 pub use providers::{
-    authorize_chat_request, new_chat_run_id, run_chat_stream, CancelChatStreamRequest,
-    ChatFinishReason, ChatMessage, ChatRequest, ChatRole, ChatRunHandle, ChatStreamEvent,
-    StartChatStreamRequest, CANCEL_CHAT_STREAM_COMMAND, MAX_OUTPUT_TOKENS, MAX_PROMPT_CHARS,
-    ORCHESTRATOR_POLL_INTERVAL, START_CHAT_STREAM_COMMAND, STREAM_DEADLINE,
+    authorize_chat_request, new_chat_run_id, new_provider_profile_id, prepare_remote_target,
+    run_chat_stream, BindProviderCredentialRequest, CancelChatStreamRequest, ChatFinishReason,
+    ChatMessage, ChatRequest, ChatRole, ChatRunHandle, ChatStreamEvent, ChatTarget,
+    CompletionTarget, CreateProviderProfileRequest, DeleteProviderProfileRequest,
+    GrantProviderConsentRequest, ProviderConsent, ProviderProfile, RevokeProviderConsentRequest,
+    StartChatStreamRequest, UpdateProviderProfileRequest, BIND_PROVIDER_CREDENTIAL_COMMAND,
+    CANCEL_CHAT_STREAM_COMMAND, CREATE_PROVIDER_PROFILE_COMMAND, DELETE_PROVIDER_PROFILE_COMMAND,
+    GRANT_PROVIDER_CONSENT_COMMAND, LIST_PROVIDER_PROFILES_COMMAND, MAX_OUTPUT_TOKENS,
+    MAX_PROMPT_CHARS, ORCHESTRATOR_POLL_INTERVAL, REMOTE_PROVIDER_KEY,
+    REVOKE_PROVIDER_CONSENT_COMMAND, START_CHAT_STREAM_COMMAND, STREAM_DEADLINE,
+    UPDATE_PROVIDER_PROFILE_COMMAND,
 };
 pub use storage::{
-    AppSettings, AppearancePreference, ConversationStore, CredentialStore, ResetAppSettingsRequest,
-    SettingsStore, UpdateAppSettingsRequest, GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND,
-    UPDATE_APP_SETTINGS_COMMAND,
+    AppSettings, AppearancePreference, ConversationStore, CredentialStore, ProviderProfileStore,
+    ResetAppSettingsRequest, SettingsStore, UpdateAppSettingsRequest, GET_APP_SETTINGS_COMMAND,
+    RESET_APP_SETTINGS_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
 };
 pub use wire::typescript_bindings;

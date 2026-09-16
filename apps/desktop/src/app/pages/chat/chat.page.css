@@ -135,6 +135,44 @@ h2 {
   color: var(--color-muted);
 }
 
+.target-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.provider-select {
+  width: auto;
+  max-width: 14rem;
+}
+
+.provenance {
+  font-weight: 500;
+  text-transform: none;
+}
+
+.consent-details {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.consent-details div {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.consent-details dt {
+  color: var(--color-muted);
+}
+
+.consent-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .model-pill {
   display: inline-grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -298,7 +336,8 @@ volt-textarea {
     text-align: left;
   }
 
-  .actions {
+  .actions,
+  .target-controls {
     flex-direction: column;
     align-items: stretch;
   }

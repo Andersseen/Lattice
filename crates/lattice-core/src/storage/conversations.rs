@@ -19,7 +19,7 @@ use crate::conversations::{
     conversations_page_size, derive_conversation_title, messages_page_size, new_conversation_id,
     new_message_id, unix_timestamp_now, Conversation, ConversationCursor, ConversationDetail,
     ConversationSummary, DeleteConversationRequest, GenerationStatus, GetConversationRequest,
-    ListConversationsRequest, ListConversationsResponse, Message, LOCAL_PROVIDER_KEY,
+    ListConversationsRequest, ListConversationsResponse, Message,
 };
 use crate::providers::{ChatMessage, ChatRole};
 use crate::AppError;
@@ -145,9 +145,13 @@ impl ConversationStore {
     /// Inserts a new empty, `streaming` assistant message and returns its
     /// ID, before the orchestrator thread produces its first event — so
     /// `get` immediately reflects an in-progress reply if queried mid-stream.
+    /// `provider_key` is the run target's provenance key (0.9's
+    /// `LOCAL_PROVIDER_KEY` or 0.11's `REMOTE_PROVIDER_KEY`), recorded per
+    /// message so a conversation can span providers.
     pub fn start_assistant_message(
         &mut self,
         conversation_id: &str,
+        provider_key: &str,
         model_key: &str,
     ) -> Result<String, AppError> {
         let tx = self.conn.transaction().map_err(|_| {
@@ -175,7 +179,7 @@ impl ConversationStore {
                 id,
                 conversation_id,
                 next_sequence,
-                LOCAL_PROVIDER_KEY,
+                provider_key,
                 model_key,
                 now
             ],
@@ -611,6 +615,8 @@ fn raw_message_row(row: &Row<'_>) -> rusqlite::Result<RawMessageRow> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversations::LOCAL_PROVIDER_KEY;
+    use crate::providers::REMOTE_PROVIDER_KEY;
     use std::{error::Error, thread, time::Duration};
     use tempfile::tempdir;
 
@@ -710,7 +716,8 @@ mod tests {
     fn streaming_message_checkpoints_then_finalizes() -> Result<(), Box<dyn Error>> {
         let mut store = ConversationStore::open_in_memory()?;
         let conversation_id = store.begin_or_continue(None, &[user_message("hi")])?;
-        let message_id = store.start_assistant_message(&conversation_id, "qwen-small")?;
+        let message_id =
+            store.start_assistant_message(&conversation_id, LOCAL_PROVIDER_KEY, "qwen-small")?;
 
         let mid_stream = store.get(GetConversationRequest {
             conversation_id: conversation_id.clone(),
@@ -750,7 +757,8 @@ mod tests {
     fn finalize_records_a_failed_generation_with_its_error_message() -> Result<(), Box<dyn Error>> {
         let mut store = ConversationStore::open_in_memory()?;
         let conversation_id = store.begin_or_continue(None, &[user_message("hi")])?;
-        let message_id = store.start_assistant_message(&conversation_id, "qwen-small")?;
+        let message_id =
+            store.start_assistant_message(&conversation_id, LOCAL_PROVIDER_KEY, "qwen-small")?;
 
         store.finalize_assistant_message(
             &message_id,
@@ -776,7 +784,8 @@ mod tests {
     fn checkpoint_after_finalize_does_not_resurrect_the_message() -> Result<(), Box<dyn Error>> {
         let mut store = ConversationStore::open_in_memory()?;
         let conversation_id = store.begin_or_continue(None, &[user_message("hi")])?;
-        let message_id = store.start_assistant_message(&conversation_id, "qwen-small")?;
+        let message_id =
+            store.start_assistant_message(&conversation_id, LOCAL_PROVIDER_KEY, "qwen-small")?;
         store.finalize_assistant_message(&message_id, "done", GenerationStatus::Complete, None)?;
 
         store.checkpoint_assistant_message(&message_id, "late, abandoned text")?;
@@ -798,7 +807,8 @@ mod tests {
         let conversation_id = {
             let mut store = ConversationStore::open(&path)?;
             let id = store.begin_or_continue(None, &[user_message("Persist me")])?;
-            let message_id = store.start_assistant_message(&id, "qwen-small")?;
+            let message_id =
+                store.start_assistant_message(&id, LOCAL_PROVIDER_KEY, "qwen-small")?;
             store.finalize_assistant_message(
                 &message_id,
                 "Sure thing.",
@@ -826,7 +836,8 @@ mod tests {
         let conversation_id = {
             let mut store = ConversationStore::open(&path)?;
             let id = store.begin_or_continue(None, &[user_message("hi")])?;
-            let message_id = store.start_assistant_message(&id, "qwen-small")?;
+            let message_id =
+                store.start_assistant_message(&id, LOCAL_PROVIDER_KEY, "qwen-small")?;
             store.checkpoint_assistant_message(&message_id, "partway through")?;
             id
             // `store` is dropped here without ever finalizing, simulating a crash.
@@ -850,7 +861,8 @@ mod tests {
         let conversation_id = {
             let mut store = ConversationStore::open(&path)?;
             let id = store.begin_or_continue(None, &[user_message("hi")])?;
-            let message_id = store.start_assistant_message(&id, "qwen-small")?;
+            let message_id =
+                store.start_assistant_message(&id, LOCAL_PROVIDER_KEY, "qwen-small")?;
             store.finalize_assistant_message(
                 &message_id,
                 "done",
@@ -951,7 +963,7 @@ mod tests {
     fn list_reports_message_count_and_last_status() -> Result<(), Box<dyn Error>> {
         let mut store = ConversationStore::open_in_memory()?;
         let id = store.begin_or_continue(None, &[user_message("hi")])?;
-        let message_id = store.start_assistant_message(&id, "qwen-small")?;
+        let message_id = store.start_assistant_message(&id, LOCAL_PROVIDER_KEY, "qwen-small")?;
         store.finalize_assistant_message(&message_id, "hello", GenerationStatus::Complete, None)?;
 
         let page = store.list(ListConversationsRequest {
@@ -997,6 +1009,91 @@ mod tests {
         assert_eq!(older_page.messages.len(), 4);
         assert_eq!(older_page.messages[0].sequence, 2);
         assert_eq!(older_page.messages[3].sequence, 5);
+        Ok(())
+    }
+
+    /// Conversations spec: switching local → remote → local retains every
+    /// message in order, and each assistant message keeps the provenance of
+    /// the target that generated it — only provider key and model key.
+    #[test]
+    fn provenance_survives_switching_local_remote_local_and_reopen() -> Result<(), Box<dyn Error>> {
+        let directory = tempdir()?;
+        let path = directory.path().join("lattice.sqlite3");
+        let conversation_id = {
+            let mut store = ConversationStore::open(&path)?;
+            let mut transcript = vec![user_message("local first")];
+            let id = store.begin_or_continue(None, &transcript)?;
+
+            for (provider_key, model_key, reply, next) in [
+                (
+                    LOCAL_PROVIDER_KEY,
+                    "qwen-small",
+                    "local reply",
+                    "remote next",
+                ),
+                (
+                    REMOTE_PROVIDER_KEY,
+                    "gpt-test",
+                    "remote reply",
+                    "local again",
+                ),
+                (LOCAL_PROVIDER_KEY, "qwen-small", "local reply 2", ""),
+            ] {
+                let message_id = store.start_assistant_message(&id, provider_key, model_key)?;
+                store.finalize_assistant_message(
+                    &message_id,
+                    reply,
+                    GenerationStatus::Complete,
+                    None,
+                )?;
+                transcript.push(assistant_message(reply));
+                if !next.is_empty() {
+                    transcript.push(user_message(next));
+                    store.begin_or_continue(Some(&id), &transcript)?;
+                }
+            }
+            id
+        };
+
+        let reopened = ConversationStore::open(&path)?.get(GetConversationRequest {
+            conversation_id,
+            limit: None,
+            before_sequence: None,
+        })?;
+        let provenance: Vec<(String, Option<&str>, Option<&str>)> = reopened
+            .messages
+            .iter()
+            .map(|message| {
+                (
+                    message.text.clone(),
+                    message.provider_key.as_deref(),
+                    message.model_key.as_deref(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            provenance,
+            vec![
+                ("local first".to_string(), None, None),
+                (
+                    "local reply".to_string(),
+                    Some(LOCAL_PROVIDER_KEY),
+                    Some("qwen-small")
+                ),
+                ("remote next".to_string(), None, None),
+                (
+                    "remote reply".to_string(),
+                    Some(REMOTE_PROVIDER_KEY),
+                    Some("gpt-test")
+                ),
+                ("local again".to_string(), None, None),
+                (
+                    "local reply 2".to_string(),
+                    Some(LOCAL_PROVIDER_KEY),
+                    Some("qwen-small")
+                ),
+            ]
+        );
         Ok(())
     }
 

@@ -7,10 +7,11 @@
 //! and its own slice of `SettingsStore`'s methods, via a separate `impl
 //! SettingsStore` block per concern.
 //!
-//! `conversations` (0.9) and `credentials` (0.10) are the domains that
-//! follow this module's own prior guidance literally: each is a sibling
-//! module with its own store type ([`conversations::ConversationStore`],
-//! [`credentials::CredentialStore`]) behind its own IPC surface — not
+//! `conversations` (0.9), `credentials` (0.10) and `provider_profiles`
+//! (0.11) are the domains that follow this module's own prior guidance
+//! literally: each is a sibling module with its own store type
+//! ([`conversations::ConversationStore`], [`credentials::CredentialStore`],
+//! [`provider_profiles::ProviderProfileStore`]) behind its own IPC surface — not
 //! another `impl SettingsStore` block. They still share the same SQLite
 //! file and the same versioned `migrate()` cascade (each its own
 //! independent `rusqlite::Connection` to that file; see their module doc
@@ -22,6 +23,7 @@ mod conversations;
 mod credentials;
 mod database;
 mod migrations;
+mod provider_profiles;
 mod runtime;
 mod settings;
 #[cfg(test)]
@@ -29,6 +31,7 @@ mod test_support;
 
 pub use conversations::ConversationStore;
 pub use credentials::CredentialStore;
+pub use provider_profiles::ProviderProfileStore;
 pub use settings::{
     AppSettings, AppearancePreference, ResetAppSettingsRequest, UpdateAppSettingsRequest,
     GET_APP_SETTINGS_COMMAND, RESET_APP_SETTINGS_COMMAND, UPDATE_APP_SETTINGS_COMMAND,
@@ -38,7 +41,7 @@ use crate::AppError;
 use rusqlite::Connection;
 use std::path::Path;
 
-pub(crate) const CURRENT_SCHEMA_VERSION: u32 = 6;
+pub(crate) const CURRENT_SCHEMA_VERSION: u32 = 7;
 pub(crate) const MODEL_LOAD_ROW_ID: i64 = 1;
 
 pub struct SettingsStore {

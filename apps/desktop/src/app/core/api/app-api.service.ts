@@ -3,31 +3,39 @@ import type {
   AppError,
   AppInfo,
   AppSettings,
+  BindProviderCredentialRequest,
   CancelChatStreamRequest,
   CancelModelOperationRequest,
   CancelModelRuntimeOperationRequest,
   ChatRequest,
   ChatRunHandle,
   ChatStreamEvent,
+  ChatTarget,
   ConfigureModelRuntimeRequest,
   ConversationDetail,
   CreateCredentialRequest,
+  CreateProviderProfileRequest,
   CredentialRef,
   DeleteConversationRequest,
   DeleteCredentialRequest,
+  DeleteProviderProfileRequest,
   GetConversationRequest,
+  GrantProviderConsentRequest,
   ListConversationsRequest,
   ListConversationsResponse,
   LoadModelRequest,
   ModelRuntimeStatus,
   ModelSlotStatus,
   ProbeModelRuntimeRequest,
+  ProviderProfile,
   ReplaceCredentialRequest,
   ResetAppSettingsRequest,
+  RevokeProviderConsentRequest,
   StartModelRuntimeRequest,
   StopModelRuntimeRequest,
   UnloadModelRequest,
-  UpdateAppSettingsRequest
+  UpdateAppSettingsRequest,
+  UpdateProviderProfileRequest
 } from '@lattice/types';
 import { APP_COMMANDS } from '@lattice/types';
 import { createWebFallbackInfo } from './app-info-fallback';
@@ -43,12 +51,15 @@ import {
   decodeListConversationsResponse,
   decodeModelRuntimeStatus,
   decodeModelSlotStatus,
+  decodeProviderProfile,
+  decodeProviderProfiles,
   normalizeAppError,
   normalizeChatError,
   normalizeConversationError,
   normalizeCredentialError,
   normalizeModelRuntimeError,
   normalizeModelSlotError,
+  normalizeProviderError,
   normalizeSettingsError
 } from './app-wire';
 import { cancelWebChatStream, startWebChatStream } from './chat-fallback';
@@ -77,6 +88,15 @@ import {
   loadWebModel,
   unloadWebModel
 } from './model-slot-fallback';
+import {
+  bindWebProviderCredential,
+  createWebProviderProfile,
+  deleteWebProviderProfile,
+  grantWebProviderConsent,
+  listWebProviderProfiles,
+  revokeWebProviderConsent,
+  updateWebProviderProfile
+} from './provider-profiles-fallback';
 import { isTauriRuntime } from './tauri-runtime';
 
 @Injectable({ providedIn: 'root' })
@@ -304,7 +324,10 @@ export class AppApiService {
   /**
    * `conversationId` is `null` to start a new conversation, or an existing
    * conversation's ID to continue it; the response's `conversationId` names
-   * the resolved conversation either way. `onEvent` is called for every
+   * the resolved conversation either way. `target` selects the local model
+   * or a remote profile for this request only; Rust resolves and authorizes
+   * it (model, consent, credential) before anything is sent or persisted.
+   * `onEvent` is called for every
    * event of the run, including its one terminal event; a malformed single
    * channel payload is skipped rather than thrown (see
    * `decodeChatStreamEvent`), so later valid events for the same run keep
@@ -313,10 +336,11 @@ export class AppApiService {
   async startChatStream(
     conversationId: string | null,
     chat: ChatRequest,
+    target: ChatTarget,
     onEvent: (event: ChatStreamEvent) => void
   ): Promise<ChatRunHandle> {
     if (!isTauriRuntime()) {
-      return startWebChatStream(conversationId, chat, onEvent);
+      return startWebChatStream(conversationId, chat, target, onEvent);
     }
 
     try {
@@ -331,7 +355,7 @@ export class AppApiService {
 
       return decodeChatRunHandle(
         await invoke<unknown>(APP_COMMANDS.startChatStream, {
-          request: { conversationId, chat },
+          request: { conversationId, chat, target },
           channel
         })
       );
@@ -471,6 +495,89 @@ export class AppApiService {
       });
     } catch (error: unknown) {
       throw normalizeCredentialError(error);
+    }
+  }
+
+  async listProviderProfiles(): Promise<readonly ProviderProfile[]> {
+    if (!isTauriRuntime()) {
+      return listWebProviderProfiles();
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeProviderProfiles(await invoke<unknown>(APP_COMMANDS.listProviderProfiles));
+    } catch (error: unknown) {
+      throw normalizeProviderError(error);
+    }
+  }
+
+  async createProviderProfile(request: CreateProviderProfileRequest): Promise<ProviderProfile> {
+    if (!isTauriRuntime()) {
+      return createWebProviderProfile(request);
+    }
+
+    return this.invokeProviderProfile(APP_COMMANDS.createProviderProfile, request);
+  }
+
+  /**
+   * Carries no credential: when the endpoint changes, Rust clears the
+   * credential binding and consent, and the returned profile shows that.
+   */
+  async updateProviderProfile(request: UpdateProviderProfileRequest): Promise<ProviderProfile> {
+    if (!isTauriRuntime()) {
+      return updateWebProviderProfile(request);
+    }
+
+    return this.invokeProviderProfile(APP_COMMANDS.updateProviderProfile, request);
+  }
+
+  async deleteProviderProfile(request: DeleteProviderProfileRequest): Promise<void> {
+    if (!isTauriRuntime()) {
+      deleteWebProviderProfile(request);
+      return;
+    }
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke<void>(APP_COMMANDS.deleteProviderProfile, {
+        request
+      });
+    } catch (error: unknown) {
+      throw normalizeProviderError(error);
+    }
+  }
+
+  async bindProviderCredential(request: BindProviderCredentialRequest): Promise<ProviderProfile> {
+    if (!isTauriRuntime()) {
+      return bindWebProviderCredential(request);
+    }
+
+    return this.invokeProviderProfile(APP_COMMANDS.bindProviderCredential, request);
+  }
+
+  /** `request.endpoint` must be the endpoint the disclosure showed the user. */
+  async grantProviderConsent(request: GrantProviderConsentRequest): Promise<ProviderProfile> {
+    if (!isTauriRuntime()) {
+      return grantWebProviderConsent(request);
+    }
+
+    return this.invokeProviderProfile(APP_COMMANDS.grantProviderConsent, request);
+  }
+
+  async revokeProviderConsent(request: RevokeProviderConsentRequest): Promise<ProviderProfile> {
+    if (!isTauriRuntime()) {
+      return revokeWebProviderConsent(request);
+    }
+
+    return this.invokeProviderProfile(APP_COMMANDS.revokeProviderConsent, request);
+  }
+
+  private async invokeProviderProfile(command: string, request: unknown): Promise<ProviderProfile> {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return decodeProviderProfile(await invoke<unknown>(command, { request }));
+    } catch (error: unknown) {
+      throw normalizeProviderError(error);
     }
   }
 }

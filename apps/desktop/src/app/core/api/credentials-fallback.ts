@@ -45,6 +45,11 @@ function tick(): number {
   return clock++;
 }
 
+/** Lets sibling fallbacks check a reference the way SQLite's foreign key does. */
+export function hasWebCredential(id: string): boolean {
+  return credentials.has(id);
+}
+
 export function listWebCredentials(): readonly CredentialRef[] {
   return [...credentials.values()]
     .sort((a, b) => b.updatedAtUnixSeconds - a.updatedAtUnixSeconds || (a.id < b.id ? 1 : -1))

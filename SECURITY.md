@@ -14,12 +14,13 @@ Implemented now:
 - Production desktop Content Security Policy for bundled assets and required IPC.
 - Main-window-only application command permission for foundation metadata.
 - Structured IPC error shape.
-- No credential storage.
-- No terminal, filesystem, MCP, provider, model runtime, or arbitrary command execution features.
+- Credential references whose secret values live only in the macOS Keychain, entered through a native prompt; no command returns a secret, and unsupported platforms fail closed.
+- Remote OpenAI-compatible providers over HTTPS only, with certificate verification against bundled Mozilla roots, no redirect following, no environment proxies, and per-endpoint consent that is cleared when the endpoint changes. Credentials are resolved per request and sent only in the `Authorization` header. See [docs/remote-providers.md](docs/remote-providers.md) and ADR 0014 for known limitations.
+- Rust-owned local model runtime discovery/lifecycle limited to an approved executable and loopback endpoint.
+- No terminal, filesystem, MCP, agent tool, or arbitrary command execution features.
 
 Planned:
 
-- OS-secure credential storage through Rust-owned APIs.
 - Explicit permissions for filesystem, terminal, MCP, and external tools.
 - Security review before agent execution or model runtime process management becomes user-facing.
 

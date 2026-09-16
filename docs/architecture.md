@@ -23,7 +23,7 @@ Lattice is a local-first desktop application with a deliberately narrow boundary
 
 ## Current Implementation
 
-Status as of 2026-09-12, on the active roadmap branch (`0.2` archived into the permanent `application-api` spec; `0.3`–`0.8` implemented with their recorded evidence limits in `docs/verification/`, not yet archived):
+Status as of 2026-09-16, on the active roadmap branch (`0.2` archived into the permanent `application-api` spec; `0.3`–`0.11` implemented with their recorded evidence limits in `docs/verification/`, not yet archived):
 
 - Angular shell, lazy routes, and a typed `AppApiService` frontend boundary with a browser fallback for every capability below.
 - Rust-generated wire contracts (`packages/types`), a checked Tauri IPC command inventory, and one structured `AppError` normalization boundary (`code`, `message`, `recoverable`).
@@ -31,7 +31,10 @@ Status as of 2026-09-12, on the active roadmap branch (`0.2` archived into the p
 - Rust-owned SQLite application settings with versioned migrations and backups (`0.4`).
 - `ModelRuntime` discovery and owned/attached start-stop lifecycle for llmster, behind an isolated adapter (`0.5`–`0.6`).
 - Installed/loaded local model inventory and a single managed load slot (`0.7`).
-- A provider-neutral local completion port (`crates/lattice-core/src/providers`), a local OpenAI-compatible (llmster) streaming adapter, a Tauri streaming channel, and a Chat UI with cancellation and a model lease (`0.8`, ADR 0012).
+- A provider-neutral completion port (`crates/lattice-core/src/providers`), a Tauri streaming channel, and a Chat UI with cancellation and a model lease (`0.8`, ADR 0012).
+- Provider-independent conversation persistence in a sibling `ConversationStore` (`0.9`).
+- OS-secure credential references with the secret only in the macOS Keychain (`0.10`, ADR 0013).
+- Remote OpenAI-compatible chat: HTTPS provider profiles with destination-bound credential binding and consent (`ProviderProfileStore`), a per-request local/remote chat target, and one `openai_compatible` adapter for both destinations with no redirects, no environment proxy and normalized errors (`0.11`, ADR 0014, [remote providers](remote-providers.md)).
 
 This proves each boundary with a real first consumer rather than creating fake agent, storage, MCP, or skill implementations ahead of their own specs.
 
